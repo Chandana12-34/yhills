@@ -1,176 +1,118 @@
-def render_health_cards(app: str, env: str, cfg: DashboardConfig):
+Analyse my Spring Boot actuator health response structure carefully and enhance my Streamlit Health Check Dashboard frontend.
 
-    env_cfg = cfg.applications[app].environments[env]
+Current Dashboard:
+- I already fetch endpoint/component data from actuator /health APIs
+- Each endpoint has a separate component table
+- Columns currently are:
+  1. Component
+  2. Status
 
-    # ---------------------------------------------------
-    # CSS
-    # ---------------------------------------------------
+New Requirement:
+Add a THIRD column called:
+- Details
 
-    st.markdown("""
-    <style>
+The actuator JSON contains nested component details like:
 
-    .health-card{
-        background:white;
-        padding:22px;
-        border-radius:14px;
-        margin-bottom:25px;
-        border:1px solid #e5e7eb;
-        box-shadow:0 2px 8px rgba(0,0,0,0.05);
+"db": {
+    "status": "UP",
+    "details": {
+        "database": "Oracle",
+        "validationQuery": "isValid()"
     }
+}
 
-    .health-top{
-        display:flex;
-        justify-content:space-between;
-        align-items:center;
-        margin-bottom:12px;
+"diskSpace": {
+    "status": "UP",
+    "details": {
+        "total": 78671253504,
+        "free": 63549206528,
+        "threshold": 10485760,
+        "path": "/",
+        "exists": true
     }
+}
 
-    .health-title{
-        font-size:22px;
-        font-weight:700;
-        color:#111827;
+Some components also contain nested child components:
+
+"discoveryComposite": {
+    "status": "UNKNOWN",
+    "components": {
+        "discoveryClient": {
+            "status": "UNKNOWN",
+            "description": "Discovery Client not initialized"
+        }
     }
+}
 
-    .health-url{
-        color:#6b7280;
-        margin-bottom:15px;
-        word-break:break-all;
-    }
+Requirements:
+1. Add a new “Details” column in every component table
+2. Extract and display component details dynamically from actuator JSON
+3. If component.details exists:
+   - Convert the details dictionary into readable key-value format
+   - Example:
+     database=Oracle
+     validationQuery=isValid()
 
-    .resp-time{
-        margin-bottom:18px;
-        font-size:15px;
-    }
+4. If nested child components exist:
+   - Flatten and display useful information
+   - Example:
+     discoveryClient: Discovery Client not initialized
 
-    .component-table{
-        width:100%;
-        border-collapse:collapse;
-    }
+5. If NO details exist:
+   - Display "-"
+   
+6. Keep separate table per endpoint:
+   - E2E Tracker
+   - Process Controller
+   - Case Manager
+   - etc.
 
-    .component-table th{
-        text-align:left;
-        background:#f3f4f6;
-        padding:12px;
-        font-size:14px;
-    }
+7. Keep columns:
+   - Component
+   - Status
+   - Details
 
-    .component-table td{
-        padding:12px;
-        border-top:1px solid #e5e7eb;
-    }
+8. Preserve existing status badge styling:
+   - UP → green
+   - DOWN → red
+   - UNKNOWN → yellow/orange
 
-    .status-up{
-        color:#16a34a;
-        font-weight:700;
-    }
+9. Use clean compact enterprise dashboard UI
+10. Ensure HTML renders correctly in Streamlit
+11. Use only ONE st.markdown() call per endpoint table
+12. Use proper HTML structure:
+    - <table>
+    - <thead>
+    - <tbody>
 
-    .status-down{
-        color:#dc2626;
-        font-weight:700;
-    }
+13. Handle all actuator variations safely:
+    - missing details
+    - missing status
+    - nested components
+    - nested descriptions
+    - empty dictionaries
 
-    .status-unknown{
-        color:#f59e0b;
-        font-weight:700;
-    }
+14. Escape HTML properly to avoid broken rendering
 
-    </style>
-    """, unsafe_allow_html=True)
+Please provide:
+1. Updated actuator parsing logic
+2. Efficient helper function to extract details text
+3. Updated component row generation logic
+4. Final render_components_table() implementation
+5. Streamlit-compatible HTML rendering code
+6. Clean and readable table formatting
 
-    # ---------------------------------------------------
-    # LOOP THROUGH ENDPOINTS
-    # ---------------------------------------------------
+Expected UI:
 
-    for ep in env_cfg.endpoints:
+------------------------------------------------------
+E2E TRACKER ✅
 
-        data = st.session_state.health_data.get(
-            ep.name,
-            {
-                "endpoint_name": ep.name,
-                "url": ep.url,
-                "status": "UNKNOWN",
-                "response_time": "-",
-                "components": {}
-            }
-        )
+| Component          | Status  | Details |
+|-------------------|----------|----------|
+| db                | UP       | database=Oracle, validationQuery=isValid() |
+| diskSpace         | UP       | total=78671253504, free=63549206528 |
+| discoveryClient   | UNKNOWN  | Discovery Client not initialized |
+| readinessState    | UP       | - |
+------------------------------------------------------
 
-        endpoint_status = data.get("status", "UNKNOWN")
-
-        if endpoint_status == "UP":
-            endpoint_class = "status-up"
-
-        elif endpoint_status == "DOWN":
-            endpoint_class = "status-down"
-
-        else:
-            endpoint_class = "status-unknown"
-
-        rows_html = ""
-
-        components = data.get("components", {})
-
-        for comp_name, comp_data in components.items():
-
-            comp_status = comp_data.get("status", "UNKNOWN")
-
-            if comp_status == "UP":
-                comp_class = "status-up"
-
-            elif comp_status == "DOWN":
-                comp_class = "status-down"
-
-            else:
-                comp_class = "status-unknown"
-
-            rows_html += f"""
-            <tr>
-                <td>{comp_name}</td>
-                <td class="{comp_class}">
-                    {comp_status}
-                </td>
-            </tr>
-            """
-
-        card_html = f"""
-        <div class="health-card">
-
-            <div class="health-top">
-
-                <div class="health-title">
-                    {data['endpoint_name']}
-                </div>
-
-                <div class="{endpoint_class}">
-                    {endpoint_status}
-                </div>
-
-            </div>
-
-            <div class="health-url">
-                {data['url']}
-            </div>
-
-            <div class="resp-time">
-                Response Time:
-                <b>{data.get('response_time', '-')}s</b>
-            </div>
-
-            <table class="component-table">
-
-                <thead>
-                    <tr>
-                        <th>Component</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-
-                <tbody>
-                    {rows_html}
-                </tbody>
-
-            </table>
-
-        </div>
-        """
-
-        st.markdown(card_html, unsafe_allow_html=True)
+The solution should be production-quality, robust, and fully compatible with Streamlit.
