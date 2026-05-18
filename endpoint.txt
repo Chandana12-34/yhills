@@ -1,0 +1,75 @@
+I want to redesign the “Component details” section of my Streamlit Health Check Dashboard.
+
+Current Problem:
+- All component rows are appearing inside one large table.
+- The UI is cluttered and difficult to read.
+- I want the layout to look like enterprise health dashboards where EACH endpoint has its OWN separate component table.
+
+Reference Structure:
+For every endpoint such as:
+- E2E Tracker
+- Process Controller
+- Case Manager
+- Workflow Step Handler
+
+Create an individual section with:
+1. Endpoint title/header
+2. Separate compact table under it
+3. Component-wise health details inside that table
+
+Expected UI Example:
+
+------------------------------------------------
+E2E TRACKER ✅
+
+| Component              | Status |
+|------------------------|--------|
+| db                     | UP     |
+| diskSpace              | UP     |
+| readinessState         | UP     |
+| ping                   | UP     |
+------------------------------------------------
+
+PROCESS CONTROLLER ✅
+
+| Component              | Status |
+|------------------------|--------|
+| db                     | UP     |
+| kafka                  | UP     |
+| diskSpace              | UP     |
+------------------------------------------------
+
+CASE MANAGER ✅
+
+| Component              | Status |
+|------------------------|--------|
+| db                     | UP     |
+| readinessState         | UP     |
+------------------------------------------------
+
+Requirements:
+1. Generate a SEPARATE HTML table for EACH endpoint
+2. Do NOT combine all components into one table
+3. Use Streamlit st.markdown(..., unsafe_allow_html=True)
+4. Use proper HTML structure:
+   - <table>
+   - <thead>
+   - <tbody>
+5. Ensure no raw HTML tags appear on screen
+6. Use compact styling similar to enterprise monitoring dashboards
+7. Add spacing between endpoint sections
+8. Keep status badges:
+   - UP = green
+   - DOWN = red
+   - UNKNOWN = yellow/orange
+9. Each endpoint section should render independently
+10. Preserve current health data logic and component extraction
+
+Please provide:
+1. Correct render_components_table() implementation
+2. Proper looping logic endpoint-wise
+3. Correct comp_rows generation
+4. Final Streamlit-compatible HTML rendering code
+5. Clean UI structure with one table per endpoint
+
+The solution should fully work in Streamlit and render properly without broken HTML.
