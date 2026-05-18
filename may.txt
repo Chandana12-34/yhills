@@ -1,0 +1,176 @@
+def render_health_cards(app: str, env: str, cfg: DashboardConfig):
+
+    env_cfg = cfg.applications[app].environments[env]
+
+    # ---------------------------------------------------
+    # CSS
+    # ---------------------------------------------------
+
+    st.markdown("""
+    <style>
+
+    .health-card{
+        background:white;
+        padding:22px;
+        border-radius:14px;
+        margin-bottom:25px;
+        border:1px solid #e5e7eb;
+        box-shadow:0 2px 8px rgba(0,0,0,0.05);
+    }
+
+    .health-top{
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        margin-bottom:12px;
+    }
+
+    .health-title{
+        font-size:22px;
+        font-weight:700;
+        color:#111827;
+    }
+
+    .health-url{
+        color:#6b7280;
+        margin-bottom:15px;
+        word-break:break-all;
+    }
+
+    .resp-time{
+        margin-bottom:18px;
+        font-size:15px;
+    }
+
+    .component-table{
+        width:100%;
+        border-collapse:collapse;
+    }
+
+    .component-table th{
+        text-align:left;
+        background:#f3f4f6;
+        padding:12px;
+        font-size:14px;
+    }
+
+    .component-table td{
+        padding:12px;
+        border-top:1px solid #e5e7eb;
+    }
+
+    .status-up{
+        color:#16a34a;
+        font-weight:700;
+    }
+
+    .status-down{
+        color:#dc2626;
+        font-weight:700;
+    }
+
+    .status-unknown{
+        color:#f59e0b;
+        font-weight:700;
+    }
+
+    </style>
+    """, unsafe_allow_html=True)
+
+    # ---------------------------------------------------
+    # LOOP THROUGH ENDPOINTS
+    # ---------------------------------------------------
+
+    for ep in env_cfg.endpoints:
+
+        data = st.session_state.health_data.get(
+            ep.name,
+            {
+                "endpoint_name": ep.name,
+                "url": ep.url,
+                "status": "UNKNOWN",
+                "response_time": "-",
+                "components": {}
+            }
+        )
+
+        endpoint_status = data.get("status", "UNKNOWN")
+
+        if endpoint_status == "UP":
+            endpoint_class = "status-up"
+
+        elif endpoint_status == "DOWN":
+            endpoint_class = "status-down"
+
+        else:
+            endpoint_class = "status-unknown"
+
+        rows_html = ""
+
+        components = data.get("components", {})
+
+        for comp_name, comp_data in components.items():
+
+            comp_status = comp_data.get("status", "UNKNOWN")
+
+            if comp_status == "UP":
+                comp_class = "status-up"
+
+            elif comp_status == "DOWN":
+                comp_class = "status-down"
+
+            else:
+                comp_class = "status-unknown"
+
+            rows_html += f"""
+            <tr>
+                <td>{comp_name}</td>
+                <td class="{comp_class}">
+                    {comp_status}
+                </td>
+            </tr>
+            """
+
+        card_html = f"""
+        <div class="health-card">
+
+            <div class="health-top">
+
+                <div class="health-title">
+                    {data['endpoint_name']}
+                </div>
+
+                <div class="{endpoint_class}">
+                    {endpoint_status}
+                </div>
+
+            </div>
+
+            <div class="health-url">
+                {data['url']}
+            </div>
+
+            <div class="resp-time">
+                Response Time:
+                <b>{data.get('response_time', '-')}s</b>
+            </div>
+
+            <table class="component-table">
+
+                <thead>
+                    <tr>
+                        <th>Component</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {rows_html}
+                </tbody>
+
+            </table>
+
+        </div>
+        """
+
+        st.markdown(card_html, unsafe_allow_html=True)
