@@ -1,59 +1,77 @@
-Analyse my Streamlit frontend issue carefully and correct the rendering problem in the “Component details” section.
-
-Current Issue:
-- The first endpoint table renders correctly in proper HTML table format.
-- The second table (“Component details”) is showing raw HTML tags like:
-  <thead>
-  <tbody>
-  <tr>
-  <td>
-  instead of rendering as a proper table.
-- Some rows render partially at the bottom while remaining HTML appears as plain text above.
-- This indicates malformed HTML structure or incorrect Streamlit markdown rendering.
-
-Project Context:
-- Using Streamlit
-- Using st.markdown(..., unsafe_allow_html=True)
-- Building HTML tables dynamically using Python f-strings
-- comp_rows contains dynamically generated <tr> rows
-- Endpoint table works correctly
-- Component details table does not
-
-Please check for ALL possible frontend issues including:
-1. Broken HTML structure
-2. Missing <table> opening tag
-3. Incorrect placement of <thead>, <tbody>, or </table>
-4. Improper multiline f-string formatting
-5. HTML escaping by Streamlit
-6. Incorrect usage of st.markdown()
-7. Using body= parameter incorrectly
-8. Broken quote usage inside f-strings
-9. Nested triple quote issues
-10. Invalid HTML generated inside badge span
-11. Extra closing tags
-12. Incorrect indentation breaking the HTML string
-13. Multiple st.markdown() calls splitting one table
-14. Improper comp_rows generation
-
-Requirements:
-- Render Component details exactly like the first compact table
-- Use only ONE st.markdown() call for the full component table
-- Ensure HTML renders correctly without showing raw tags
-- Preserve compact styling and alignment
-- Keep status badges working properly
-- Ensure all rows appear inside the table correctly
-
-Provide:
-1. Root cause analysis
-2. Corrected render_components_table() function
-3. Correct comp_rows generation
-4. Correct st.markdown() usage
-5. Final working Streamlit HTML rendering code
-
-Expected Result:
-A properly aligned compact HTML table for Component details with columns:
-- Endpoint
-- Component
-- Status
-
-No raw HTML tags should appear on screen.
+🟦 Slide 1: Title
+AI-Based Dashboard Failure Monitoring System (Using RAG)
+Name: Chandana K S
+Department: Computer Science and Engineering
+🟥 Slide 2: Problem Statement
+Organizations use Power BI, Datahub, and AutoSys for data processing and reporting
+These systems run scheduled jobs and dashboard refreshes
+Failures occur due to:
+API / data source issues
+Network or connectivity issues
+Authentication failures
+Job dependency failures
+Monitoring is currently manual or semi-automated
+Delay in identifying and reporting failures
+🟦 Slide 3: Background
+Dashboards and jobs are critical for business operations
+Large number of dashboards makes manual monitoring difficult
+Failure logs are complex and hard to analyze
+No automated system for root cause identification
+Need for faster and structured failure response
+🟩 Slide 4: Objective
+Automate dashboard and job failure detection
+Reduce manual monitoring effort
+Provide fast root cause analysis
+Improve response time for failures
+Generate structured alert notifications
+🟨 Slide 5: Proposed Solution
+AI-based monitoring system for dashboards and jobs
+Logs collected from Power BI / AutoSys / Datahub
+Failure detection using status and error logs
+RAG-based analysis using past error cases
+Generate root cause using LLM
+Send alerts via Email / Teams
+🟪 Slide 6: Technical Approach
+Log collection from APIs / system logs
+Failure detection using error codes and status flags
+Vector database (FAISS) stores past error logs
+Semantic search retrieves similar past failures
+LLM generates root cause and solution
+Notification system sends alerts
+🟧 Slide 7: System Architecture
+Input: Dashboard / Job Logs
+Processing:
+Log monitoring
+Failure detection
+RAG retrieval (FAISS)
+LLM analysis
+Output: Email / Teams alert
+🟫 Slide 8: RAG Workflow
+Retrieve similar past error logs
+Augment with current failure log
+Generate root cause and solution using AI
+Improve accuracy using historical data
+🟨 Slide 9: Technology Stack
+Python
+LangChain
+FAISS (Vector Database)
+OpenAI / LLM
+REST APIs (Power BI / AutoSys)
+Email / Teams API
+🟩 Slide 10: Expected Output
+Dashboard: Finance Report
+Status: Failed
+Error: Web.Contents failed (400)
+Root Cause: API or incorrect URL
+Suggested Fix: Check data source / endpoint
+Alert sent automatically
+🟥 Slide 11: Benefits
+Reduces manual monitoring effort
+Faster failure detection
+Improves response time (MTTR)
+Scalable for large systems
+Standardized alert messages
+🟦 Slide 12: Conclusion
+Proposed system automates failure detection and notification
+Uses AI and RAG for intelligent analysis
+Improves efficiency and reliability of monitoring systems
