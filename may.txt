@@ -1,186 +1,50 @@
-I want you to refactor my existing Streamlit Health Check Dashboard application architecture.
-
-IMPORTANT REQUIREMENT:
-Currently the health endpoints are called using Python backend requests.get() calls from Streamlit server side.
-
-I want to completely change this architecture so that:
-
-- The browser itself should call the actuator health URLs
-- NOT the Python backend
-- Use JavaScript fetch() inside Streamlit
-- This is required because the deployed server may not have VPN/firewall access to internal URLs, but employee browsers do have access
-
-========================================
-CURRENT SETUP
-========================================
-
-My project currently:
-- Uses Streamlit
-- Reads endpoints dynamically from config.yaml
-- Has sidebar app/environment selection
-- Has health cards and component tables
-- Uses requests.get()
-- Uses st.session_state.health_data
-- Uses refresh_health_data()
-
-The application already loads endpoint URLs correctly from config.yaml.
-
-========================================
-WHAT I WANT
-========================================
-
-I want the architecture changed to:
-
-Browser -> Health URL directly
-
-instead of:
-
-Browser -> Streamlit Backend -> Health URL
-
-========================================
-REFACTOR REQUIREMENTS
-========================================
-
-1. REMOVE ALL BACKEND HEALTH CALLS
-
-Remove:
-- requests.get()
-- refresh_health_data()
-- session_state.health_data
-- backend polling logic
-
-Do NOT use Python requests anymore.
-
-========================================
-2. KEEP EXISTING CONFIG.YAML STRUCTURE
-========================================
-
-Keep my existing YAML structure unchanged.
-
-Example:
-
-applications:
-  tea:
-    environments:
-      staging:
-        endpoints:
-          - name: DnB Notification Manager
-            url: https://xxxx/actuator/health
-
-The Streamlit app must continue dynamically loading endpoints from this config.
-
-========================================
-3. USE JAVASCRIPT fetch()
-========================================
-
-Inside Streamlit use:
-
+import streamlit as st
 import streamlit.components.v1 as components
 
-Use components.html() and inject JavaScript fetch() calls.
+st.title("Health Check Test")
 
-Each endpoint should:
-- Call its actuator URL directly from browser
-- Parse JSON response
-- Dynamically render:
-  - Main UP/DOWN status
-  - Component table
-  - Component statuses
+url = "https://your-actuator-url/health"
 
-========================================
-4. UI REQUIREMENTS
-========================================
+html_code = f"""
+<div id="status">
+    Checking...
+</div>
 
-Maintain professional UI styling:
-- White health cards
-- Rounded corners
-- Soft shadow
-- Proper spacing
-- Responsive width
-- Green UP status
-- Red DOWN status
-- Orange loading state
+<script>
 
-Each health card should display:
-- Endpoint name
-- Endpoint URL
-- Main status
-- Response table
+async function checkHealth() {{
 
-========================================
-5. COMPONENT TABLE REQUIREMENTS
-========================================
+    try {{
 
-Render actuator components dynamically.
+        const response = await fetch("{url}");
 
-Example:
-- db
-- diskSpace
-- ping
-- readinessState
-- livenessState
+        if(response.ok) {{
 
-Table columns:
-- Component
-- Status
+            const data = await response.json();
 
-Statuses should be color coded.
+            document.getElementById("status").innerHTML =
+                "<h2 style='color:green;'>UP</h2>";
 
-========================================
-6. IMPORTANT
-========================================
+            console.log(data);
 
-The HTML should render properly in Streamlit.
+        }} else {{
 
-Make sure:
-- unsafe_allow_html=True is correctly used
-- HTML is NOT rendered as raw text
-- components.html() is correctly implemented
-- No indentation/syntax issues
-- JavaScript executes correctly
+            document.getElementById("status").innerHTML =
+                "<h2 style='color:red;'>DOWN</h2>";
+        }}
 
-========================================
-7. ERROR HANDLING
-========================================
+    }} catch(error) {{
 
-If fetch fails:
-- Show ERROR state
-- Do not crash UI
+        document.getElementById("status").innerHTML =
+            "<h2 style='color:red;'>ERROR</h2>";
 
-If response is not OK:
-- Show DOWN state
+        console.error(error);
+    }}
+}}
 
-========================================
-8. IMPLEMENTATION DETAILS
-========================================
+checkHealth();
 
-Generate a complete replacement for:
+</script>
+"""
 
-def render_health_cards(app: str, env: str, cfg: DashboardConfig):
-
-Use:
-- components.html()
-- JavaScript fetch()
-- Dynamic endpoint loop
-- Dynamic component rendering
-
-========================================
-9. FINAL OUTPUT EXPECTATION
-========================================
-
-The final dashboard should:
-- Work fully from browser-side requests
-- Avoid backend firewall issues
-- Dynamically load from config.yaml
-- Display actuator health properly
-- Render professional health cards
-- Render component table correctly
-- Support multiple endpoints dynamically
-
-========================================
-10. VERY IMPORTANT
-========================================
-
-Provide production-quality clean code.
-Avoid partial snippets.
-Provide the complete final implementation for render_health_cards() with all required CSS, HTML, JavaScript, and Streamlit integration.
+components.html(html_code, height=200)
