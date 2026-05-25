@@ -1,118 +1,186 @@
-Analyse my Spring Boot actuator health response structure carefully and enhance my Streamlit Health Check Dashboard frontend.
+I want you to refactor my existing Streamlit Health Check Dashboard application architecture.
 
-Current Dashboard:
-- I already fetch endpoint/component data from actuator /health APIs
-- Each endpoint has a separate component table
-- Columns currently are:
-  1. Component
-  2. Status
+IMPORTANT REQUIREMENT:
+Currently the health endpoints are called using Python backend requests.get() calls from Streamlit server side.
 
-New Requirement:
-Add a THIRD column called:
-- Details
+I want to completely change this architecture so that:
 
-The actuator JSON contains nested component details like:
+- The browser itself should call the actuator health URLs
+- NOT the Python backend
+- Use JavaScript fetch() inside Streamlit
+- This is required because the deployed server may not have VPN/firewall access to internal URLs, but employee browsers do have access
 
-"db": {
-    "status": "UP",
-    "details": {
-        "database": "Oracle",
-        "validationQuery": "isValid()"
-    }
-}
+========================================
+CURRENT SETUP
+========================================
 
-"diskSpace": {
-    "status": "UP",
-    "details": {
-        "total": 78671253504,
-        "free": 63549206528,
-        "threshold": 10485760,
-        "path": "/",
-        "exists": true
-    }
-}
+My project currently:
+- Uses Streamlit
+- Reads endpoints dynamically from config.yaml
+- Has sidebar app/environment selection
+- Has health cards and component tables
+- Uses requests.get()
+- Uses st.session_state.health_data
+- Uses refresh_health_data()
 
-Some components also contain nested child components:
+The application already loads endpoint URLs correctly from config.yaml.
 
-"discoveryComposite": {
-    "status": "UNKNOWN",
-    "components": {
-        "discoveryClient": {
-            "status": "UNKNOWN",
-            "description": "Discovery Client not initialized"
-        }
-    }
-}
+========================================
+WHAT I WANT
+========================================
 
-Requirements:
-1. Add a new “Details” column in every component table
-2. Extract and display component details dynamically from actuator JSON
-3. If component.details exists:
-   - Convert the details dictionary into readable key-value format
-   - Example:
-     database=Oracle
-     validationQuery=isValid()
+I want the architecture changed to:
 
-4. If nested child components exist:
-   - Flatten and display useful information
-   - Example:
-     discoveryClient: Discovery Client not initialized
+Browser -> Health URL directly
 
-5. If NO details exist:
-   - Display "-"
-   
-6. Keep separate table per endpoint:
-   - E2E Tracker
-   - Process Controller
-   - Case Manager
-   - etc.
+instead of:
 
-7. Keep columns:
-   - Component
-   - Status
-   - Details
+Browser -> Streamlit Backend -> Health URL
 
-8. Preserve existing status badge styling:
-   - UP → green
-   - DOWN → red
-   - UNKNOWN → yellow/orange
+========================================
+REFACTOR REQUIREMENTS
+========================================
 
-9. Use clean compact enterprise dashboard UI
-10. Ensure HTML renders correctly in Streamlit
-11. Use only ONE st.markdown() call per endpoint table
-12. Use proper HTML structure:
-    - <table>
-    - <thead>
-    - <tbody>
+1. REMOVE ALL BACKEND HEALTH CALLS
 
-13. Handle all actuator variations safely:
-    - missing details
-    - missing status
-    - nested components
-    - nested descriptions
-    - empty dictionaries
+Remove:
+- requests.get()
+- refresh_health_data()
+- session_state.health_data
+- backend polling logic
 
-14. Escape HTML properly to avoid broken rendering
+Do NOT use Python requests anymore.
 
-Please provide:
-1. Updated actuator parsing logic
-2. Efficient helper function to extract details text
-3. Updated component row generation logic
-4. Final render_components_table() implementation
-5. Streamlit-compatible HTML rendering code
-6. Clean and readable table formatting
+========================================
+2. KEEP EXISTING CONFIG.YAML STRUCTURE
+========================================
 
-Expected UI:
+Keep my existing YAML structure unchanged.
 
-------------------------------------------------------
-E2E TRACKER ✅
+Example:
 
-| Component          | Status  | Details |
-|-------------------|----------|----------|
-| db                | UP       | database=Oracle, validationQuery=isValid() |
-| diskSpace         | UP       | total=78671253504, free=63549206528 |
-| discoveryClient   | UNKNOWN  | Discovery Client not initialized |
-| readinessState    | UP       | - |
-------------------------------------------------------
+applications:
+  tea:
+    environments:
+      staging:
+        endpoints:
+          - name: DnB Notification Manager
+            url: https://xxxx/actuator/health
 
-The solution should be production-quality, robust, and fully compatible with Streamlit.
+The Streamlit app must continue dynamically loading endpoints from this config.
+
+========================================
+3. USE JAVASCRIPT fetch()
+========================================
+
+Inside Streamlit use:
+
+import streamlit.components.v1 as components
+
+Use components.html() and inject JavaScript fetch() calls.
+
+Each endpoint should:
+- Call its actuator URL directly from browser
+- Parse JSON response
+- Dynamically render:
+  - Main UP/DOWN status
+  - Component table
+  - Component statuses
+
+========================================
+4. UI REQUIREMENTS
+========================================
+
+Maintain professional UI styling:
+- White health cards
+- Rounded corners
+- Soft shadow
+- Proper spacing
+- Responsive width
+- Green UP status
+- Red DOWN status
+- Orange loading state
+
+Each health card should display:
+- Endpoint name
+- Endpoint URL
+- Main status
+- Response table
+
+========================================
+5. COMPONENT TABLE REQUIREMENTS
+========================================
+
+Render actuator components dynamically.
+
+Example:
+- db
+- diskSpace
+- ping
+- readinessState
+- livenessState
+
+Table columns:
+- Component
+- Status
+
+Statuses should be color coded.
+
+========================================
+6. IMPORTANT
+========================================
+
+The HTML should render properly in Streamlit.
+
+Make sure:
+- unsafe_allow_html=True is correctly used
+- HTML is NOT rendered as raw text
+- components.html() is correctly implemented
+- No indentation/syntax issues
+- JavaScript executes correctly
+
+========================================
+7. ERROR HANDLING
+========================================
+
+If fetch fails:
+- Show ERROR state
+- Do not crash UI
+
+If response is not OK:
+- Show DOWN state
+
+========================================
+8. IMPLEMENTATION DETAILS
+========================================
+
+Generate a complete replacement for:
+
+def render_health_cards(app: str, env: str, cfg: DashboardConfig):
+
+Use:
+- components.html()
+- JavaScript fetch()
+- Dynamic endpoint loop
+- Dynamic component rendering
+
+========================================
+9. FINAL OUTPUT EXPECTATION
+========================================
+
+The final dashboard should:
+- Work fully from browser-side requests
+- Avoid backend firewall issues
+- Dynamically load from config.yaml
+- Display actuator health properly
+- Render professional health cards
+- Render component table correctly
+- Support multiple endpoints dynamically
+
+========================================
+10. VERY IMPORTANT
+========================================
+
+Provide production-quality clean code.
+Avoid partial snippets.
+Provide the complete final implementation for render_health_cards() with all required CSS, HTML, JavaScript, and Streamlit integration.
