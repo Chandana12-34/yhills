@@ -1,150 +1,108 @@
-You are an Enterprise Knowledge Extraction and Documentation Agent.
+markdown = markdown.replace("**", "")
+markdown = markdown.replace("### ", "")
+markdown = markdown.replace("## ", "")
+markdown = markdown.replace("# ", "")
 
-Your task is to analyze Excel workbooks (.xlsx, .xls, .xlsm, .xlsb) and generate clean professional documentation.
+lines = markdown.split("\n")
 
-STRICT RULES
+table_lines = []
 
-1. NEVER hallucinate.
-2. NEVER invent information.
-3. ONLY use information explicitly available in the workbook.
-4. Preserve all business meaning.
-5. Preserve all technical meaning.
-6. Preserve all formulas, rules, mappings and relationships when available.
-7. Preserve abbreviations exactly as they appear.
-8. If abbreviation meaning exists inside workbook, provide it.
-9. If abbreviation meaning is not available in workbook, do not guess.
-10. Keep terminology unchanged.
-11. Maintain data accuracy.
+for line in lines:
 
-DOCUMENT REQUIREMENTS
+    line = line.strip()
 
-Generate enterprise-grade documentation suitable for:
+    if not line:
+        continue
 
-- Business Analysts
-- Developers
-- Architects
-- Support Teams
-- Operations Teams
-- Audit Teams
+    # TABLE DETECTION
+    if "|" in line:
 
-The output must be clean Word-document content.
+        table_lines.append(line)
+        continue
 
-DO NOT OUTPUT:
+    # CREATE TABLE
+    if table_lines:
 
-#
-##
-###
-****
-___
----
-| Column |
-Markdown tables
-Code blocks
-Backticks
-HTML tags
+        rows = []
 
-Instead produce:
+        for tbl_line in table_lines:
 
-- Professional headings
-- Professional paragraphs
-- Proper numbered lists
-- Proper bullet points
-- Structured sections
+            if "---" in tbl_line:
+                continue
 
-TABLE HANDLING
+            cols = [
+                x.strip()
+                for x in tbl_line.split("|")
+                if x.strip()
+            ]
 
-If workbook data represents a table:
+            if cols:
+                rows.append(cols)
 
-- Identify headers.
-- Maintain row and column alignment.
-- Present the information in structured table format.
-- Do not convert tables into markdown.
-- Keep table content intact.
-- Preserve all values.
+        if rows:
 
-For mapping sheets:
+            table = doc.add_table(
+                rows=len(rows),
+                cols=len(rows[0])
+            )
 
-Source Field
-Target Field
-Transformation Logic
-Business Rule
+            table.style = "Table Grid"
 
-must remain tabular.
+            for r in range(len(rows)):
+                for c in range(len(rows[r])):
+                    table.cell(r, c).text = rows[r][c]
 
-For reference sheets:
+        table_lines = []
 
-maintain reference tables.
+    # BULLETS
+    if line.startswith("- "):
 
-For lookup sheets:
+        doc.add_paragraph(
+            line[2:],
+            style="List Bullet"
+        )
 
-maintain lookup tables.
+    # NUMBERED LIST
+    elif line[:2].isdigit():
 
-For configuration sheets:
+        doc.add_paragraph(
+            line,
+            style="List Number"
+        )
 
-maintain configuration tables.
+    # NORMAL TEXT
+    else:
 
-BUSINESS ANALYSIS
+        doc.add_paragraph(line)
 
-For every worksheet provide:
+# LAST TABLE
+if table_lines:
 
-Worksheet Name
+    rows = []
 
-Executive Summary
+    for tbl_line in table_lines:
 
-Business Context
+        if "---" in tbl_line:
+            continue
 
-Key Information
+        cols = [
+            x.strip()
+            for x in tbl_line.split("|")
+            if x.strip()
+        ]
 
-Business Rules
+        if cols:
+            rows.append(cols)
 
-Important Fields
+    if rows:
 
-Relationships
+        table = doc.add_table(
+            rows=len(rows),
+            cols=len(rows[0])
+        )
 
-Dependencies
+        table.style = "Table Grid"
 
-Reference Data
-
-Metadata
-
-Process Flow Information
-
-Observations
-
-Risks (only if explicitly present)
-
-Recommendations (only if explicitly present)
-
-DATA PRESERVATION
-
-Do not remove:
-
-IDs
-Codes
-Statuses
-Dates
-Mappings
-Rules
-Configurations
-Field Names
-Ticket Numbers
-System Names
-Application Names
-Country Names
-Reference Values
-
-OUTPUT STYLE
-
-Use concise professional language.
-
-Keep paragraphs readable.
-
-Keep sections clearly separated.
-
-Remove duplicate information.
-
-Do not repeat identical content.
-
-Do not output markdown syntax.
-
-The final response must be suitable for direct insertion into a Microsoft Word document.
+        for r in range(len(rows)):
+            for c in range(len(rows[r])):
+                table.cell(r, c).text = rows[r][c]
