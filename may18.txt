@@ -1,77 +1,242 @@
-🟦 Slide 1: Title
-AI-Based Dashboard Failure Monitoring System (Using RAG)
-Name: Chandana K S
-Department: Computer Science and Engineering
-🟥 Slide 2: Problem Statement
-Organizations use Power BI, Datahub, and AutoSys for data processing and reporting
-These systems run scheduled jobs and dashboard refreshes
-Failures occur due to:
-API / data source issues
-Network or connectivity issues
-Authentication failures
-Job dependency failures
-Monitoring is currently manual or semi-automated
-Delay in identifying and reporting failures
-🟦 Slide 3: Background
-Dashboards and jobs are critical for business operations
-Large number of dashboards makes manual monitoring difficult
-Failure logs are complex and hard to analyze
-No automated system for root cause identification
-Need for faster and structured failure response
-🟩 Slide 4: Objective
-Automate dashboard and job failure detection
-Reduce manual monitoring effort
-Provide fast root cause analysis
-Improve response time for failures
-Generate structured alert notifications
-🟨 Slide 5: Proposed Solution
-AI-based monitoring system for dashboards and jobs
-Logs collected from Power BI / AutoSys / Datahub
-Failure detection using status and error logs
-RAG-based analysis using past error cases
-Generate root cause using LLM
-Send alerts via Email / Teams
-🟪 Slide 6: Technical Approach
-Log collection from APIs / system logs
-Failure detection using error codes and status flags
-Vector database (FAISS) stores past error logs
-Semantic search retrieves similar past failures
-LLM generates root cause and solution
-Notification system sends alerts
-🟧 Slide 7: System Architecture
-Input: Dashboard / Job Logs
-Processing:
-Log monitoring
-Failure detection
-RAG retrieval (FAISS)
-LLM analysis
-Output: Email / Teams alert
-🟫 Slide 8: RAG Workflow
-Retrieve similar past error logs
-Augment with current failure log
-Generate root cause and solution using AI
-Improve accuracy using historical data
-🟨 Slide 9: Technology Stack
-Python
-LangChain
-FAISS (Vector Database)
-OpenAI / LLM
-REST APIs (Power BI / AutoSys)
-Email / Teams API
-🟩 Slide 10: Expected Output
-Dashboard: Finance Report
-Status: Failed
-Error: Web.Contents failed (400)
-Root Cause: API or incorrect URL
-Suggested Fix: Check data source / endpoint
-Alert sent automatically
-🟥 Slide 11: Benefits
-Reduces manual monitoring effort
-Faster failure detection
-Improves response time (MTTR)
-Scalable for large systems
-Standardized alert messages
-🟦 Slide 12: Conclusion
-Proposed system automates failure detection and notification
-Uses AI and RAG for intelligent analysis
-Improves efficiency and reliability of monitoring systems
+import os
+import sys
+import json
+import requests
+
+from openpyxl import load_workbook
+from docx import Document
+
+# =========================================================
+# CONFIG
+# =========================================================
+
+LLM_URL = "https://api.llm.cib.echonet/v1/openai/chat/completions"
+
+MODEL_NAME = "mistral-medium-2508-ITG"
+
+API_KEY = os.getenv("LLM_TOKEN")
+
+if not API_KEY:
+    raise Exception(
+        "LLM_TOKEN not set - please export your API token."
+    )
+
+# =========================================================
+# SYSTEM PROMPT
+# =========================================================
+
+SYSTEM_PROMPT = """
+You are an expert Knowledge Extraction and Document Intelligence Agent.
+
+Your task is to analyze a Macro Enabled Excel Workbook (.xlsm)
+worksheet by worksheet.
+
+Convert workbook content into professional enterprise documentation.
+
+Requirements:
+
+- Preserve all business information.
+- Preserve all KYC and compliance information.
+- Preserve decision logic.
+- Preserve important values.
+- Explain tables in readable language.
+- Explain abbreviations if possible.
+- Maintain business context.
+- Generate clean markdown suitable for DOCX generation.
+
+Output Format:
+
+# Sheet Name
+
+## Executive Summary
+
+## Business Context
+
+## Extracted Content
+
+## Business Rules
+
+## Important Fields
+
+## Relationships
+
+## Metadata
+
+## Retrieval Information
+"""
+
+# =========================================================
+# READ XLSM
+# =========================================================
+
+if len(sys.argv) < 2:
+    print("Usage:")
+    print("python convert.py workbook.xlsm")
+    sys.exit(1)
+
+excel_file = sys.argv[1]
+
+print(f"\nLoading workbook: {excel_file}")
+
+workbook = load_workbook(
+    excel_file,
+    data_only=True,
+    keep_vba=True
+)
+
+print(f"Found {len(workbook.sheetnames)} sheets")
+
+# =========================================================
+# CREATE DOC
+# =========================================================
+
+doc = Document()
+
+doc.add_heading(
+    "Enterprise Knowledge Document",
+    level=1
+)
+
+# =========================================================
+# PROCESS SHEETS
+# =========================================================
+
+for sheet_name in workbook.sheetnames:
+
+    print(f"\nProcessing: {sheet_name}")
+
+    ws = workbook[sheet_name]
+
+    rows = []
+
+    for row in ws.iter_rows(values_only=True):
+
+        clean_row = []
+
+        for cell in row:
+
+            if cell is None:
+                continue
+
+            value = str(cell).strip()
+
+            if value:
+                clean_row.append(value)
+
+        if clean_row:
+            rows.append(clean_row)
+
+    payload_data = {
+        "sheet_name": sheet_name,
+        "rows": rows
+    }
+
+    user_prompt = f"""
+Analyze the worksheet below.
+
+Worksheet Name:
+{sheet_name}
+
+Worksheet Content:
+
+{json.dumps(payload_data, indent=2, ensure_ascii=False)}
+
+Create enterprise-grade documentation.
+"""
+
+    payload = {
+        "model": MODEL_NAME,
+        "messages": [
+            {
+                "role": "system",
+                "content": SYSTEM_PROMPT
+            },
+            {
+                "role": "user",
+                "content": user_prompt
+            }
+        ],
+        "temperature": 0.1
+    }
+
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    try:
+
+        response = requests.post(
+            LLM_URL,
+            headers=headers,
+            json=payload,
+            timeout=300
+        )
+
+        response.raise_for_status()
+
+        result = response.json()
+
+        markdown = (
+            result["choices"][0]
+            ["message"]
+            ["content"]
+        )
+
+        doc.add_page_break()
+
+        doc.add_heading(
+            sheet_name,
+            level=1
+        )
+
+        for line in markdown.split("\n"):
+
+            line = line.strip()
+
+            if not line:
+                continue
+
+            if line.startswith("# "):
+                doc.add_heading(
+                    line.replace("# ", ""),
+                    level=1
+                )
+
+            elif line.startswith("## "):
+                doc.add_heading(
+                    line.replace("## ", ""),
+                    level=2
+                )
+
+            elif line.startswith("### "):
+                doc.add_heading(
+                    line.replace("### ", ""),
+                    level=3
+                )
+
+            else:
+                doc.add_paragraph(line)
+
+        print(f"Completed: {sheet_name}")
+
+    except Exception as e:
+
+        print(
+            f"Failed Sheet: {sheet_name}"
+        )
+
+        print(str(e))
+
+# =========================================================
+# SAVE
+# =========================================================
+
+output_file = "Compendium_Output.docx"
+
+doc.save(output_file)
+
+print("\n====================================")
+print("DOCUMENT GENERATED SUCCESSFULLY")
+print("====================================")
+print(f"Output: {output_file}")
