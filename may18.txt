@@ -1,242 +1,90 @@
-import os
-import sys
-import json
-import requests
+def read_excel_file(file_path):
 
-from openpyxl import load_workbook
-from docx import Document
+    ext = os.path.splitext(file_path)[1].lower()
 
-# =========================================================
-# CONFIG
-# =========================================================
+    workbook_data = {}
 
-LLM_URL = "https://api.llm.cib.echonet/v1/openai/chat/completions"
+    # XLSX / XLSM
+    if ext in [".xlsx", ".xlsm"]:
 
-MODEL_NAME = "mistral-medium-2508-ITG"
-
-API_KEY = os.getenv("LLM_TOKEN")
-
-if not API_KEY:
-    raise Exception(
-        "LLM_TOKEN not set - please export your API token."
-    )
-
-# =========================================================
-# SYSTEM PROMPT
-# =========================================================
-
-SYSTEM_PROMPT = """
-You are an expert Knowledge Extraction and Document Intelligence Agent.
-
-Your task is to analyze a Macro Enabled Excel Workbook (.xlsm)
-worksheet by worksheet.
-
-Convert workbook content into professional enterprise documentation.
-
-Requirements:
-
-- Preserve all business information.
-- Preserve all KYC and compliance information.
-- Preserve decision logic.
-- Preserve important values.
-- Explain tables in readable language.
-- Explain abbreviations if possible.
-- Maintain business context.
-- Generate clean markdown suitable for DOCX generation.
-
-Output Format:
-
-# Sheet Name
-
-## Executive Summary
-
-## Business Context
-
-## Extracted Content
-
-## Business Rules
-
-## Important Fields
-
-## Relationships
-
-## Metadata
-
-## Retrieval Information
-"""
-
-# =========================================================
-# READ XLSM
-# =========================================================
-
-if len(sys.argv) < 2:
-    print("Usage:")
-    print("python convert.py workbook.xlsm")
-    sys.exit(1)
-
-excel_file = sys.argv[1]
-
-print(f"\nLoading workbook: {excel_file}")
-
-workbook = load_workbook(
-    excel_file,
-    data_only=True,
-    keep_vba=True
-)
-
-print(f"Found {len(workbook.sheetnames)} sheets")
-
-# =========================================================
-# CREATE DOC
-# =========================================================
-
-doc = Document()
-
-doc.add_heading(
-    "Enterprise Knowledge Document",
-    level=1
-)
-
-# =========================================================
-# PROCESS SHEETS
-# =========================================================
-
-for sheet_name in workbook.sheetnames:
-
-    print(f"\nProcessing: {sheet_name}")
-
-    ws = workbook[sheet_name]
-
-    rows = []
-
-    for row in ws.iter_rows(values_only=True):
-
-        clean_row = []
-
-        for cell in row:
-
-            if cell is None:
-                continue
-
-            value = str(cell).strip()
-
-            if value:
-                clean_row.append(value)
-
-        if clean_row:
-            rows.append(clean_row)
-
-    payload_data = {
-        "sheet_name": sheet_name,
-        "rows": rows
-    }
-
-    user_prompt = f"""
-Analyze the worksheet below.
-
-Worksheet Name:
-{sheet_name}
-
-Worksheet Content:
-
-{json.dumps(payload_data, indent=2, ensure_ascii=False)}
-
-Create enterprise-grade documentation.
-"""
-
-    payload = {
-        "model": MODEL_NAME,
-        "messages": [
-            {
-                "role": "system",
-                "content": SYSTEM_PROMPT
-            },
-            {
-                "role": "user",
-                "content": user_prompt
-            }
-        ],
-        "temperature": 0.1
-    }
-
-    headers = {
-        "Authorization": f"Bearer {API_KEY}",
-        "Content-Type": "application/json"
-    }
-
-    try:
-
-        response = requests.post(
-            LLM_URL,
-            headers=headers,
-            json=payload,
-            timeout=300
+        wb = load_workbook(
+            file_path,
+            data_only=True,
+            keep_vba=True
         )
 
-        response.raise_for_status()
+        for sheet_name in wb.sheetnames:
 
-        result = response.json()
+            ws = wb[sheet_name]
 
-        markdown = (
-            result["choices"][0]
-            ["message"]
-            ["content"]
+            rows = []
+
+            for row in ws.iter_rows(values_only=True):
+
+                row_data = []
+
+                for cell in row:
+
+                    if cell is not None:
+                        row_data.append(str(cell))
+
+                if row_data:
+                    rows.append(row_data)
+
+            workbook_data[sheet_name] = rows
+
+    # XLS
+    elif ext == ".xls":
+
+        wb = xlrd.open_workbook(file_path)
+
+        for sheet in wb.sheets():
+
+            rows = []
+
+            for r in range(sheet.nrows):
+
+                row_values = []
+
+                for value in sheet.row_values(r):
+
+                    if value != "":
+                        row_values.append(str(value))
+
+                if row_values:
+                    rows.append(row_values)
+
+            workbook_data[sheet.name] = rows
+
+    # XLSB
+    elif ext == ".xlsb":
+
+        with open_workbook(file_path) as wb:
+
+            for sheet_name in wb.sheets:
+
+                rows = []
+
+                with wb.get_sheet(sheet_name) as sheet:
+
+                    for row in sheet.rows():
+
+                        values = []
+
+                        for cell in row:
+
+                            if cell.v is not None:
+                                values.append(str(cell.v))
+
+                        if values:
+                            rows.append(values)
+
+                workbook_data[sheet_name] = rows
+
+    else:
+
+        raise Exception(
+            f"Unsupported file format: {ext}"
         )
 
-        doc.add_page_break()
-
-        doc.add_heading(
-            sheet_name,
-            level=1
-        )
-
-        for line in markdown.split("\n"):
-
-            line = line.strip()
-
-            if not line:
-                continue
-
-            if line.startswith("# "):
-                doc.add_heading(
-                    line.replace("# ", ""),
-                    level=1
-                )
-
-            elif line.startswith("## "):
-                doc.add_heading(
-                    line.replace("## ", ""),
-                    level=2
-                )
-
-            elif line.startswith("### "):
-                doc.add_heading(
-                    line.replace("### ", ""),
-                    level=3
-                )
-
-            else:
-                doc.add_paragraph(line)
-
-        print(f"Completed: {sheet_name}")
-
-    except Exception as e:
-
-        print(
-            f"Failed Sheet: {sheet_name}"
-        )
-
-        print(str(e))
-
-# =========================================================
-# SAVE
-# =========================================================
-
-output_file = "Compendium_Output.docx"
-
-doc.save(output_file)
-
-print("\n====================================")
-print("DOCUMENT GENERATED SUCCESSFULLY")
-print("====================================")
-print(f"Output: {output_file}")
+    return workbook_data
