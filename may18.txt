@@ -1,165 +1,49 @@
-import os
-import sys
-import io
-import json
-import fitz
-import pdfplumber
-import requests
-import pytesseract
+import base64
 
-from PIL import Image
-from docx import Document
-from docx.shared import Inches
+def extract_text_from_image_llm(image_path):
 
-# ====================================================
-# CONFIG
-# ====================================================
+    with open(image_path, "rb") as f:
 
-LLM_URL = "YOUR_LLM_ENDPOINT"
-
-API_KEY = "YOUR_API_KEY"
-
-MODEL_NAME = "mistral-medium-2508-ITG"
-
-# ====================================================
-# SYSTEM PROMPT
-# ====================================================
-
-SYSTEM_PROMPT = """
-You are an Enterprise Document Intelligence Agent.
-
-Analyze the PDF content.
-
-Rules:
-
-- Never hallucinate.
-- Never invent information.
-- Use only information from source.
-- Preserve all business meaning.
-- Preserve technical details.
-- Preserve abbreviations exactly.
-- Preserve relationships.
-
-Extract:
-
-- Executive Summary
-- Business Context
-- Important Information
-- Tables Summary
-- Key Findings
-- Metadata
-- Relationships
-
-IMPORTANT:
-
-Do not output markdown.
-
-Do not use:
-
-#
-##
-###
-**
----
-|
-
-Generate clean professional text.
-"""
-
-# ====================================================
-# PDF EXTRACTION
-# ====================================================
-
-def extract_pdf(pdf_path):
-
-    extracted_text = []
-
-    extracted_tables = []
-
-    extracted_image_text = []
-
-    pdf = fitz.open(pdf_path)
-
-    for page_number in range(len(pdf)):
-
-        page = pdf[page_number]
-
-        text = page.get_text()
-
-        if text.strip():
-
-            extracted_text.append(text)
-
-        images = page.get_images(full=True)
-
-        for image_info in images:
-
-            xref = image_info[0]
-
-            base_image = pdf.extract_image(xref)
-
-            image_bytes = base_image["image"]
-
-            image = Image.open(io.BytesIO(image_bytes))
-
-            ocr_text = pytesseract.image_to_string(image)
-
-            if ocr_text.strip():
-
-                extracted_image_text.append(ocr_text)
-
-    with pdfplumber.open(pdf_path) as pdf_doc:
-
-        for page in pdf_doc.pages:
-
-            tables = page.extract_tables()
-
-            for table in tables:
-
-                extracted_tables.append(table)
-
-    return {
-        "text": extracted_text,
-        "tables": extracted_tables,
-        "images_text": extracted_image_text
-    }
-
-# ====================================================
-# LLM CALL
-# ====================================================
-
-def generate_documentation(content):
+        image_b64 = base64.b64encode(
+            f.read()
+        ).decode("utf-8")
 
     payload = {
         "model": MODEL_NAME,
         "messages": [
             {
-                "role": "system",
-                "content": SYSTEM_PROMPT
-            },
-            {
                 "role": "user",
-                "content": json.dumps(
-                    content,
-                    indent=2,
-                    ensure_ascii=False
-                )
+                "content": [
+                    {
+                        "type": "text",
+                        "text": """
+                        Extract all text,
+                        tables,
+                        labels,
+                        captions,
+                        business information
+                        and technical information
+                        from this image.
+                        """
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url":
+                            f"data:image/png;base64,{image_b64}"
+                        }
+                    }
+                ]
             }
-        ],
-        "temperature": 0.1
-    }
-
-    headers = {
-        "Authorization": f"Bearer {API_KEY}",
-        "Content-Type": "application/json"
+        ]
     }
 
     response = requests.post(
         LLM_URL,
         headers=headers,
         json=payload,
-        verify=False,
-        timeout=300
+        timeout=300,
+        verify=False
     )
 
     response.raise_for_status()
@@ -171,144 +55,3 @@ def generate_documentation(content):
         ["message"]
         ["content"]
     )
-
-# ====================================================
-# CLEAN MARKDOWN
-# ====================================================
-
-def clean_text(text):
-
-    text = text.replace("###", "")
-    text = text.replace("##", "")
-    text = text.replace("#", "")
-    text = text.replace("**", "")
-    text = text.replace("---", "")
-
-    return text
-
-# ====================================================
-# CREATE DOCX
-# ====================================================
-
-def create_docx(output_file,
-                ai_content,
-                extracted_tables):
-
-    doc = Document()
-
-    doc.add_heading(
-        "Enterprise Knowledge Document",
-        level=1
-    )
-
-    ai_content = clean_text(ai_content)
-
-    for line in ai_content.split("\n"):
-
-        line = line.strip()
-
-        if not line:
-            continue
-
-        doc.add_paragraph(line)
-
-    # ===================================
-    # TABLE SECTION
-    # ===================================
-
-    if extracted_tables:
-
-        doc.add_page_break()
-
-        doc.add_heading(
-            "Extracted Tables",
-            level=1
-        )
-
-        for index, table_data in enumerate(extracted_tables):
-
-            if not table_data:
-                continue
-
-            doc.add_heading(
-                f"Table {index + 1}",
-                level=2
-            )
-
-            cols = max(len(row)
-                       for row in table_data)
-
-            table = doc.add_table(
-                rows=len(table_data),
-                cols=cols
-            )
-
-            table.style = "Table Grid"
-
-            for r, row in enumerate(table_data):
-
-                for c in range(cols):
-
-                    value = ""
-
-                    if c < len(row):
-
-                        value = str(row[c])
-
-                    table.cell(r, c).text = value
-
-    doc.save(output_file)
-
-# ====================================================
-# MAIN
-# ====================================================
-
-def main():
-
-    if len(sys.argv) < 2:
-
-        print(
-            "Usage:"
-        )
-
-        print(
-            "python convert_pdf.py file.pdf output.docx"
-        )
-
-        return
-
-    pdf_file = sys.argv[1]
-
-    output_file = (
-        sys.argv[2]
-        if len(sys.argv) > 2
-        else "output.docx"
-    )
-
-    print("Extracting PDF...")
-
-    content = extract_pdf(pdf_file)
-
-    print("Generating AI documentation...")
-
-    ai_doc = generate_documentation(content)
-
-    print("Creating DOCX...")
-
-    create_docx(
-        output_file,
-        ai_doc,
-        content["tables"]
-    )
-
-    print()
-
-    print("SUCCESS")
-
-    print(
-        f"Output File: {output_file}"
-    )
-
-if __name__ == "__main__":
-
-    main()
