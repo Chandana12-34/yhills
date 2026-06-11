@@ -1,108 +1,314 @@
-markdown = markdown.replace("**", "")
-markdown = markdown.replace("### ", "")
-markdown = markdown.replace("## ", "")
-markdown = markdown.replace("# ", "")
+import os
+import sys
+import io
+import json
+import fitz
+import pdfplumber
+import requests
+import pytesseract
 
-lines = markdown.split("\n")
+from PIL import Image
+from docx import Document
+from docx.shared import Inches
 
-table_lines = []
+# ====================================================
+# CONFIG
+# ====================================================
 
-for line in lines:
+LLM_URL = "YOUR_LLM_ENDPOINT"
 
-    line = line.strip()
+API_KEY = "YOUR_API_KEY"
 
-    if not line:
-        continue
+MODEL_NAME = "mistral-medium-2508-ITG"
 
-    # TABLE DETECTION
-    if "|" in line:
+# ====================================================
+# SYSTEM PROMPT
+# ====================================================
 
-        table_lines.append(line)
-        continue
+SYSTEM_PROMPT = """
+You are an Enterprise Document Intelligence Agent.
 
-    # CREATE TABLE
-    if table_lines:
+Analyze the PDF content.
 
-        rows = []
+Rules:
 
-        for tbl_line in table_lines:
+- Never hallucinate.
+- Never invent information.
+- Use only information from source.
+- Preserve all business meaning.
+- Preserve technical details.
+- Preserve abbreviations exactly.
+- Preserve relationships.
 
-            if "---" in tbl_line:
+Extract:
+
+- Executive Summary
+- Business Context
+- Important Information
+- Tables Summary
+- Key Findings
+- Metadata
+- Relationships
+
+IMPORTANT:
+
+Do not output markdown.
+
+Do not use:
+
+#
+##
+###
+**
+---
+|
+
+Generate clean professional text.
+"""
+
+# ====================================================
+# PDF EXTRACTION
+# ====================================================
+
+def extract_pdf(pdf_path):
+
+    extracted_text = []
+
+    extracted_tables = []
+
+    extracted_image_text = []
+
+    pdf = fitz.open(pdf_path)
+
+    for page_number in range(len(pdf)):
+
+        page = pdf[page_number]
+
+        text = page.get_text()
+
+        if text.strip():
+
+            extracted_text.append(text)
+
+        images = page.get_images(full=True)
+
+        for image_info in images:
+
+            xref = image_info[0]
+
+            base_image = pdf.extract_image(xref)
+
+            image_bytes = base_image["image"]
+
+            image = Image.open(io.BytesIO(image_bytes))
+
+            ocr_text = pytesseract.image_to_string(image)
+
+            if ocr_text.strip():
+
+                extracted_image_text.append(ocr_text)
+
+    with pdfplumber.open(pdf_path) as pdf_doc:
+
+        for page in pdf_doc.pages:
+
+            tables = page.extract_tables()
+
+            for table in tables:
+
+                extracted_tables.append(table)
+
+    return {
+        "text": extracted_text,
+        "tables": extracted_tables,
+        "images_text": extracted_image_text
+    }
+
+# ====================================================
+# LLM CALL
+# ====================================================
+
+def generate_documentation(content):
+
+    payload = {
+        "model": MODEL_NAME,
+        "messages": [
+            {
+                "role": "system",
+                "content": SYSTEM_PROMPT
+            },
+            {
+                "role": "user",
+                "content": json.dumps(
+                    content,
+                    indent=2,
+                    ensure_ascii=False
+                )
+            }
+        ],
+        "temperature": 0.1
+    }
+
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    response = requests.post(
+        LLM_URL,
+        headers=headers,
+        json=payload,
+        verify=False,
+        timeout=300
+    )
+
+    response.raise_for_status()
+
+    result = response.json()
+
+    return (
+        result["choices"][0]
+        ["message"]
+        ["content"]
+    )
+
+# ====================================================
+# CLEAN MARKDOWN
+# ====================================================
+
+def clean_text(text):
+
+    text = text.replace("###", "")
+    text = text.replace("##", "")
+    text = text.replace("#", "")
+    text = text.replace("**", "")
+    text = text.replace("---", "")
+
+    return text
+
+# ====================================================
+# CREATE DOCX
+# ====================================================
+
+def create_docx(output_file,
+                ai_content,
+                extracted_tables):
+
+    doc = Document()
+
+    doc.add_heading(
+        "Enterprise Knowledge Document",
+        level=1
+    )
+
+    ai_content = clean_text(ai_content)
+
+    for line in ai_content.split("\n"):
+
+        line = line.strip()
+
+        if not line:
+            continue
+
+        doc.add_paragraph(line)
+
+    # ===================================
+    # TABLE SECTION
+    # ===================================
+
+    if extracted_tables:
+
+        doc.add_page_break()
+
+        doc.add_heading(
+            "Extracted Tables",
+            level=1
+        )
+
+        for index, table_data in enumerate(extracted_tables):
+
+            if not table_data:
                 continue
 
-            cols = [
-                x.strip()
-                for x in tbl_line.split("|")
-                if x.strip()
-            ]
+            doc.add_heading(
+                f"Table {index + 1}",
+                level=2
+            )
 
-            if cols:
-                rows.append(cols)
-
-        if rows:
+            cols = max(len(row)
+                       for row in table_data)
 
             table = doc.add_table(
-                rows=len(rows),
-                cols=len(rows[0])
+                rows=len(table_data),
+                cols=cols
             )
 
             table.style = "Table Grid"
 
-            for r in range(len(rows)):
-                for c in range(len(rows[r])):
-                    table.cell(r, c).text = rows[r][c]
+            for r, row in enumerate(table_data):
 
-        table_lines = []
+                for c in range(cols):
 
-    # BULLETS
-    if line.startswith("- "):
+                    value = ""
 
-        doc.add_paragraph(
-            line[2:],
-            style="List Bullet"
+                    if c < len(row):
+
+                        value = str(row[c])
+
+                    table.cell(r, c).text = value
+
+    doc.save(output_file)
+
+# ====================================================
+# MAIN
+# ====================================================
+
+def main():
+
+    if len(sys.argv) < 2:
+
+        print(
+            "Usage:"
         )
 
-    # NUMBERED LIST
-    elif line[:2].isdigit():
-
-        doc.add_paragraph(
-            line,
-            style="List Number"
+        print(
+            "python convert_pdf.py file.pdf output.docx"
         )
 
-    # NORMAL TEXT
-    else:
+        return
 
-        doc.add_paragraph(line)
+    pdf_file = sys.argv[1]
 
-# LAST TABLE
-if table_lines:
+    output_file = (
+        sys.argv[2]
+        if len(sys.argv) > 2
+        else "output.docx"
+    )
 
-    rows = []
+    print("Extracting PDF...")
 
-    for tbl_line in table_lines:
+    content = extract_pdf(pdf_file)
 
-        if "---" in tbl_line:
-            continue
+    print("Generating AI documentation...")
 
-        cols = [
-            x.strip()
-            for x in tbl_line.split("|")
-            if x.strip()
-        ]
+    ai_doc = generate_documentation(content)
 
-        if cols:
-            rows.append(cols)
+    print("Creating DOCX...")
 
-    if rows:
+    create_docx(
+        output_file,
+        ai_doc,
+        content["tables"]
+    )
 
-        table = doc.add_table(
-            rows=len(rows),
-            cols=len(rows[0])
-        )
+    print()
 
-        table.style = "Table Grid"
+    print("SUCCESS")
 
-        for r in range(len(rows)):
-            for c in range(len(rows[r])):
-                table.cell(r, c).text = rows[r][c]
+    print(
+        f"Output File: {output_file}"
+    )
+
+if __name__ == "__main__":
+
+    main()
