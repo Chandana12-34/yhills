@@ -1,57 +1,65 @@
-import base64
-
-def extract_text_from_image_llm(image_path):
-
-    with open(image_path, "rb") as f:
-
-        image_b64 = base64.b64encode(
-            f.read()
-        ).decode("utf-8")
-
-    payload = {
-        "model": MODEL_NAME,
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": """
-                        Extract all text,
-                        tables,
-                        labels,
-                        captions,
-                        business information
-                        and technical information
-                        from this image.
-                        """
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url":
-                            f"data:image/png;base64,{image_b64}"
-                        }
-                    }
-                ]
-            }
-        ]
-    }
-
-    response = requests.post(
-        LLM_URL,
-        headers=headers,
-        json=payload,
-        timeout=300,
-        verify=False
-    )
-
-    response.raise_for_status()
-
-    result = response.json()
-
-    return (
-        result["choices"][0]
-        ["message"]
-        ["content"]
-    )
+You are a technical documentation expert and trainer.
+I want you to create a Knowledge Transfer (KT) document in MS Word style content.
+The topic is:
+🟢 Dynatrace File Monitoring – End-to-End Implementation Guide
+🟢 MAIN GOAL
+Write a document that is:
+Very detailed like a real company KT document
+BUT also very easy to understand (even a beginner or non-technical person should understand it)
+Explain everything step-by-step in simple language
+Use real-world examples wherever possible
+Think like: 👉 “Teach a fresher + explain like a school teacher + still keep it professional”
+🟢 FORMAT REQUIREMENTS
+Divide content into pages:
+PAGE 1, PAGE 2, PAGE 3… etc.
+Each page must contain:
+Long explanation (200–400+ words per page)
+Simple English + clear explanation
+Proper headings
+Small bullet points only when needed
+Writing style:
+Professional + Beginner-friendly
+Avoid complex jargon without explanation
+If technical terms are used, explain them in simple words immediately
+🟢 HOW TO EXPLAIN (VERY IMPORTANT)
+Whenever you mention something technical:
+✔ First give technical meaning
+✔ Then give SIMPLE meaning
+✔ Then give REAL-LIFE EXAMPLE
+Example style: “Dynatrace is an observability tool.
+In simple words, it is like a CCTV camera for your software systems.
+For example, if a file is missing, it will immediately alert you like a security alarm.”
+🟢 CONTENT STRUCTURE
+Include these sections:
+Title Page
+Introduction (What is file monitoring and why it is needed)
+What is Dynatrace (simple explanation + real-life example)
+Why Dynatrace is used
+What is File Monitoring
+AutoSys Overview (explained simply)
+File Generation Process (step-by-step flow)
+What is Data Ingestion
+What is Git (simple version control explanation)
+Repository Explanation
+Branching Concept
+Git Installation Steps
+Cloning Project
+Working in Project Folder
+Creating Branch
+YAML & JSON explained simply
+File Alias and File Path meaning
+Code Update Process
+Git Commands (add, commit, push)
+Pull Request (very simple explanation)
+Jenkins Deployment (simple CI/CD explanation)
+Dynatrace Dashboard explanation
+End-to-End Flow (AutoSys → Git → Jenkins → Dynatrace)
+Conclusion
+🟢 EXTRA INSTRUCTIONS
+Use very simple English
+Avoid heavy technical words without explanation
+Use real-world comparisons (CCTV, alarm system, school attendance, etc.)
+Make it feel like a friendly teacher is explaining DevOps
+Keep it professional but NOT complicated
+No emojis in final output
+No one-line answers
