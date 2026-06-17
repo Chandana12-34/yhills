@@ -18,6 +18,8 @@ file_path = r"C:\Path\To\ThePublicLabelledFile.docx"
 word = win32com.client.Dispatch("Word.Application")
 word.Visible = False
 
+another one
+
 doc = word.Documents.Open(file_path)
 
 try:
@@ -31,3 +33,81 @@ except Exception as e:
 
 doc.Close(False)
 word.Quit()
+
+
+
+
+another one
+
+
+Build a production-ready Python automation script for Microsoft Word Sensitivity Labels.
+
+Requirements:
+
+1. Input Folder:
+    * Read all .docx files from:
+        INPUT_FOLDER = “FENERGO (2)”
+2. Output Folder:
+    * Create OUTPUT_FOLDER automatically if it does not exist.
+    * Save processed files into the output folder while preserving filenames.
+3. Microsoft Word Automation:
+    * Use pywin32 (win32com.client).
+    * Launch Microsoft Word in background mode.
+    * Open each DOCX file.
+    * Detect if the document already has a sensitivity label.
+    * If no label exists, apply the “Public” sensitivity label.
+    * If a label already exists, optionally replace it with “Public”.
+4. Label Discovery:
+    * Enumerate available Sensitivity Labels from Microsoft Word / Microsoft Purview.
+    * Find the label whose display name is exactly “Public”.
+    * Retrieve all required metadata automatically:
+        * Label ID
+        * Site ID
+        * Tenant ID
+        * Assignment Method
+        * Any additional required properties
+5. Label Application:
+    * Use Word SensitivityLabel APIs:
+        * GetLabel()
+        * SetLabel()
+        * CreateLabelInfo()
+    * Create the correct LabelInfo object.
+    * Apply the Public label programmatically.
+    * Save the document after successful labeling.
+6. Error Handling:
+    * Skip corrupted files.
+    * Log failures into errors.log.
+    * Continue processing remaining files.
+    * Handle:
+        * Protected View
+        * Read-only files
+        * Missing labels
+        * COM exceptions
+        * Purview policy restrictions
+7. Logging:
+    * Generate processing_report.csv containing:
+        * File Name
+        * Original Label
+        * New Label
+        * Status
+        * Error Message
+8. Performance:
+    * Process hundreds of DOCX files.
+    * Reuse a single Word instance.
+    * Properly release COM objects.
+    * Close all documents after processing.
+9. Output:
+    * Print summary:
+        * Total Files
+        * Successful
+        * Failed
+        * Output Folder Path
+10. Code Quality:
+
+* Python 3.11+
+* Well-structured functions
+* Type hints
+* Detailed comments
+* Production-ready implementation
+
+Provide the complete executable Python code.
