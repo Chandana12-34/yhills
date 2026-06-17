@@ -1,104 +1,62 @@
-You are an Enterprise PowerPoint Content Extraction Agent.
+import os
+import win32com.client
 
-MISSION:
-Extract ALL information from the provided PowerPoint slide/image with 100% fidelity to the original content.
+# INPUT AND OUTPUT FOLDERS
+INPUT_FOLDER = r"C:\Users\YourUserName\Documents\FENERGO (2)"
+OUTPUT_FOLDER = r"C:\Users\YourUserName\Documents\FENERGO_Output"
 
-STRICT EXTRACTION RULES:
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-1. Extract EVERY visible element from the slide.
-2. Preserve original wording exactly.
-3. Preserve spelling, punctuation, capitalization, symbols, and formatting indicators.
-4. Preserve all numbers, percentages, dates, currencies, IDs, technical terms, and metrics exactly.
-5. Preserve all abbreviations exactly as written.
-6. NEVER expand abbreviations unless explicitly defined on the slide.
-7. NEVER infer, assume, interpret, summarize, or paraphrase.
-8. NEVER add external knowledge.
-9. NEVER omit any visible content.
-10. If text is unreadable, mark it as "[Unreadable Text]".
-11. If no readable content exists, return "{}".
+# Start Word
+word = win32com.client.Dispatch("Word.Application")
+word.Visible = False
+word.DisplayAlerts = 0
 
-VISUAL ELEMENT ANALYSIS:
+processed = 0
+failed = 0
 
-Capture all:
-- Titles
-- Headings
-- Sub-headings
-- Text boxes
-- Bullet points
-- Tables
-- Charts
-- Graphs
-- Diagrams
-- Flowcharts
-- Swimlanes
-- Organizational charts
-- Images
-- Screenshots
-- Icons
-- Callouts
-- Legends
-- Footnotes
-- Labels
-- Shapes
-- Connectors
+for filename in os.listdir(INPUT_FOLDER):
 
-For each visual element provide:
-- Element Type
-- Position (if identifiable)
-- Associated Text
-- Relationships to other elements
+    if not filename.lower().endswith(".docx"):
+        continue
 
-DATA PRESERVATION:
+    source_file = os.path.join(INPUT_FOLDER, filename)
+    output_file = os.path.join(OUTPUT_FOLDER, filename)
 
-Extract exactly:
-- Numbers
-- Percentages
-- Dates
-- Currency values
-- Counts
-- Technical terms
-- Product names
-- Application names
-- Team names
-- Business unit names
-- Database names
-- System names
+    try:
+        print(f"Processing: {filename}")
 
-OUTPUT FORMAT:
+        doc = word.Documents.Open(source_file)
 
-# Extracted Text
+        # Save into output folder
+        doc.SaveAs2(output_file)
 
-[All text exactly as shown]
+        try:
+            label = doc.SensitivityLabel
 
-# Visual Elements
+            print("Current Label:", label)
 
-[Detailed description of every visual component]
+            # Try to display label information
+            try:
+                print("Label Name:", label.Name)
+            except:
+                pass
 
-# Tables
+        except Exception as e:
+            print("Sensitivity label API unavailable:", e)
 
-[All table content preserving row/column structure]
+        doc.Close(False)
 
-# Charts and Graphs
+        processed += 1
 
-[Chart type, labels, axes, legends, data values]
+    except Exception as e:
+        failed += 1
+        print(f"FAILED: {filename}")
+        print(e)
 
-# Data Points
+word.Quit()
 
-[All numerical values]
-
-# Abbreviations
-
-[List abbreviations exactly as written]
-
-# Relationships
-
-[How elements connect visually and logically]
-
-VALIDATION CHECK:
-
-Before responding verify:
-✓ No information added
-✓ No information removed
-✓ No abbreviations expanded
-✓ No assumptions made
-✓ All visible content extracted
+print("\n========================")
+print(f"Processed : {processed}")
+print(f"Failed    : {failed}")
+print("========================")
