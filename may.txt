@@ -8,3 +8,30 @@ doc = word.Documents.Open(
 )
 
 print(dir(doc.SensitivityLabel))
+
+
+new one
+
+import win32com.client
+
+file_path = r"C:\Users\112539\PycharmProjects\Conversion\FENERGO (2)\FENERGO\Best Practices Document Management_RAG.docx"
+
+word = win32com.client.Dispatch("Word.Application")
+word.Visible = True
+
+doc = word.Documents.Open(file_path)
+
+try:
+    print("Sensitivity Label Object:")
+    print(doc.SensitivityLabel)
+
+    print("\nAvailable Methods:")
+    print(dir(doc.SensitivityLabel))
+
+except Exception as e:
+    print("Error:", e)
+
+input("Press Enter to close...")
+
+doc.Close(False)
+word.Quit()
