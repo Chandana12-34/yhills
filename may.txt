@@ -35,3 +35,36 @@ input("Press Enter to close...")
 
 doc.Close(False)
 word.Quit()
+
+
+
+other new one
+import win32com.client
+
+file_path = r"YOUR_DOC_PATH"
+
+word = win32com.client.Dispatch("Word.Application")
+word.Visible = True
+
+doc = word.Documents.Open(file_path)
+
+try:
+    sl = doc.SensitivityLabel
+
+    labelInfo = sl.CreateLabelInfo()
+
+    labelInfo.LabelName = "Public"
+
+    sl.SetLabel(labelInfo, 0)
+
+    doc.Save()
+
+    print("SUCCESS")
+
+except Exception as e:
+    print("ERROR:", e)
+
+input("Press Enter...")
+
+doc.Close()
+word.Quit()
