@@ -8,3 +8,26 @@ doc = word.Documents.Open(
 )
 
 print("Opened Successfully")
+
+
+new one 
+import win32com.client
+
+file_path = r"C:\Path\To\ThePublicLabelledFile.docx"
+
+word = win32com.client.Dispatch("Word.Application")
+word.Visible = False
+
+doc = word.Documents.Open(file_path)
+
+try:
+    label = doc.SensitivityLabel.GetLabel()
+
+    print("Label ID:", label.LabelId)
+    print("Label Name:", label.LabelName)
+
+except Exception as e:
+    print(e)
+
+doc.Close(False)
+word.Quit()
