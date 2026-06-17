@@ -1,77 +1,23 @@
-🟦 Slide 1: Title
-AI-Based Dashboard Failure Monitoring System (Using RAG)
-Name: Chandana K S
-Department: Computer Science and Engineering
-🟥 Slide 2: Problem Statement
-Organizations use Power BI, Datahub, and AutoSys for data processing and reporting
-These systems run scheduled jobs and dashboard refreshes
-Failures occur due to:
-API / data source issues
-Network or connectivity issues
-Authentication failures
-Job dependency failures
-Monitoring is currently manual or semi-automated
-Delay in identifying and reporting failures
-🟦 Slide 3: Background
-Dashboards and jobs are critical for business operations
-Large number of dashboards makes manual monitoring difficult
-Failure logs are complex and hard to analyze
-No automated system for root cause identification
-Need for faster and structured failure response
-🟩 Slide 4: Objective
-Automate dashboard and job failure detection
-Reduce manual monitoring effort
-Provide fast root cause analysis
-Improve response time for failures
-Generate structured alert notifications
-🟨 Slide 5: Proposed Solution
-AI-based monitoring system for dashboards and jobs
-Logs collected from Power BI / AutoSys / Datahub
-Failure detection using status and error logs
-RAG-based analysis using past error cases
-Generate root cause using LLM
-Send alerts via Email / Teams
-🟪 Slide 6: Technical Approach
-Log collection from APIs / system logs
-Failure detection using error codes and status flags
-Vector database (FAISS) stores past error logs
-Semantic search retrieves similar past failures
-LLM generates root cause and solution
-Notification system sends alerts
-🟧 Slide 7: System Architecture
-Input: Dashboard / Job Logs
-Processing:
-Log monitoring
-Failure detection
-RAG retrieval (FAISS)
-LLM analysis
-Output: Email / Teams alert
-🟫 Slide 8: RAG Workflow
-Retrieve similar past error logs
-Augment with current failure log
-Generate root cause and solution using AI
-Improve accuracy using historical data
-🟨 Slide 9: Technology Stack
-Python
-LangChain
-FAISS (Vector Database)
-OpenAI / LLM
-REST APIs (Power BI / AutoSys)
-Email / Teams API
-🟩 Slide 10: Expected Output
-Dashboard: Finance Report
-Status: Failed
-Error: Web.Contents failed (400)
-Root Cause: API or incorrect URL
-Suggested Fix: Check data source / endpoint
-Alert sent automatically
-🟥 Slide 11: Benefits
-Reduces manual monitoring effort
-Faster failure detection
-Improves response time (MTTR)
-Scalable for large systems
-Standardized alert messages
-🟦 Slide 12: Conclusion
-Proposed system automates failure detection and notification
-Uses AI and RAG for intelligent analysis
-Improves efficiency and reliability of monitoring systems
+import win32com.client
+
+file_path = r"C:\Users\112539\PycharmProjects\Conversion\FENERGO (2)\FENERGO\Best Practices Document Management_RAG.docx"
+
+word = win32com.client.Dispatch("Word.Application")
+word.Visible = True
+
+doc = word.Documents.Open(file_path)
+
+try:
+    print("Sensitivity Label Object:")
+    print(doc.SensitivityLabel)
+
+    print("\nAvailable Methods:")
+    print(dir(doc.SensitivityLabel))
+
+except Exception as e:
+    print("Error:", e)
+
+input("Press Enter to close...")
+
+doc.Close(False)
+word.Quit()
