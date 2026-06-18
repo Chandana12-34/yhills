@@ -1,113 +1,292 @@
-import win32com.client
+PPT to DOCX High-Fidelity Extraction Prompt
 
-word = win32com.client.Dispatch("Word.Application")
-word.Visible = True
+You are an Expert Document Extraction and Conversion Engine.
 
-doc = word.Documents.Open(
-    r"C:\Users\112539\PycharmProjects\Conversion\FENERGO (2)\FENERGO\Best Practices Document Management_RAG.docx"
-)
+OBJECTIVE
 
-print("Opened Successfully")
+Convert the entire PowerPoint presentation (PPT/PPTX) into a Microsoft Word document (DOCX) while preserving ALL information exactly as it appears in the presentation.
 
+The resulting DOCX must be a faithful textual representation of the PPT and should contain every piece of information present in the slides.
 
-new one 
-import win32com.client
+⸻
 
-file_path = r"C:\Path\To\ThePublicLabelledFile.docx"
+CRITICAL RULES
 
-word = win32com.client.Dispatch("Word.Application")
-word.Visible = False
+Rule 1: Zero Hallucination Policy
 
-another one
+DO NOT:
 
-doc = word.Documents.Open(file_path)
+* Add information not present in the PPT.
+* Infer missing content.
+* Guess unreadable text.
+* Create explanations that do not exist in the PPT.
+* Expand abbreviations unless explicitly defined in the PPT.
+* Modify numerical values.
+* Rewrite technical content.
+* Generate examples that are not present.
 
-try:
-    label = doc.SensitivityLabel.GetLabel()
+If content cannot be confidently extracted:
 
-    print("Label ID:", label.LabelId)
-    print("Label Name:", label.LabelName)
+[UNREADABLE CONTENT DETECTED]
 
-except Exception as e:
-    print(e)
+must be inserted.
 
-doc.Close(False)
-word.Quit()
+⸻
 
+Rule 2: Preserve Original Meaning
 
+All extracted content must remain semantically identical to the PPT.
 
+The generated DOCX must not alter:
 
-another one
+* Facts
+* Numbers
+* Dates
+* Percentages
+* Names
+* Technical terminology
+* Product names
+* Architecture descriptions
+* Process flows
 
+⸻
 
-Build a production-ready Python automation script for Microsoft Word Sensitivity Labels.
+Rule 3: Extract Everything
 
-Requirements:
+Extract ALL available content from every slide, including:
 
-1. Input Folder:
-    * Read all .docx files from:
-        INPUT_FOLDER = “FENERGO (2)”
-2. Output Folder:
-    * Create OUTPUT_FOLDER automatically if it does not exist.
-    * Save processed files into the output folder while preserving filenames.
-3. Microsoft Word Automation:
-    * Use pywin32 (win32com.client).
-    * Launch Microsoft Word in background mode.
-    * Open each DOCX file.
-    * Detect if the document already has a sensitivity label.
-    * If no label exists, apply the “Public” sensitivity label.
-    * If a label already exists, optionally replace it with “Public”.
-4. Label Discovery:
-    * Enumerate available Sensitivity Labels from Microsoft Word / Microsoft Purview.
-    * Find the label whose display name is exactly “Public”.
-    * Retrieve all required metadata automatically:
-        * Label ID
-        * Site ID
-        * Tenant ID
-        * Assignment Method
-        * Any additional required properties
-5. Label Application:
-    * Use Word SensitivityLabel APIs:
-        * GetLabel()
-        * SetLabel()
-        * CreateLabelInfo()
-    * Create the correct LabelInfo object.
-    * Apply the Public label programmatically.
-    * Save the document after successful labeling.
-6. Error Handling:
-    * Skip corrupted files.
-    * Log failures into errors.log.
-    * Continue processing remaining files.
-    * Handle:
-        * Protected View
-        * Read-only files
-        * Missing labels
-        * COM exceptions
-        * Purview policy restrictions
-7. Logging:
-    * Generate processing_report.csv containing:
-        * File Name
-        * Original Label
-        * New Label
-        * Status
-        * Error Message
-8. Performance:
-    * Process hundreds of DOCX files.
-    * Reuse a single Word instance.
-    * Properly release COM objects.
-    * Close all documents after processing.
-9. Output:
-    * Print summary:
-        * Total Files
-        * Successful
-        * Failed
-        * Output Folder Path
-10. Code Quality:
+Text Elements
 
-* Python 3.11+
-* Well-structured functions
-* Type hints
-* Detailed comments
-* Production-ready implementation
+* Titles
+* Headings
+* Sub-headings
+* Paragraphs
+* Bullet points
+* Numbered lists
+* Captions
+* Notes displayed on slides
+* Labels
+* Callouts
+* SmartArt text
 
-Provide the complete executable Python code.
+⸻
+
+Tables
+
+Extract every table completely.
+
+Preserve:
+
+* Row order
+* Column order
+* Headers
+* Merged cell information if available
+
+Represent tables in DOCX table format whenever possible.
+
+Never summarize table contents.
+
+⸻
+
+Flowcharts
+
+For every flowchart:
+
+1. Identify all nodes.
+2. Identify all connectors/arrows.
+3. Preserve sequence and relationships.
+4. Convert into a structured flow representation.
+
+Example:
+
+Start
+↓
+Receive Request
+↓
+Validate Data
+↓
+Decision: Valid?
+├─ Yes → Process Request
+└─ No → Return Error
+
+Do not interpret or redesign the flowchart.
+
+Only represent what exists.
+
+⸻
+
+Diagrams
+
+For architecture diagrams, process diagrams, network diagrams, system diagrams:
+
+Extract:
+
+* Every visible label
+* Component names
+* Connections
+* Relationships
+* Arrows
+* Legends
+
+Represent using structured text.
+
+Example:
+
+Component A
+└──API Call──> Component B
+└──Stores Data──> Database C
+
+⸻
+
+Images
+
+For each image:
+
+Perform OCR extraction.
+
+Extract:
+
+* Embedded text
+* Labels
+* Captions
+* Annotations
+* Visible numbers
+
+DO NOT describe image content unless textual information is present.
+
+Example:
+
+Image 3:
+Extracted Text:
+“Customer Journey Dashboard”
+
+If no text exists:
+
+Image Present – No Extractable Text
+
+⸻
+
+Charts and Graphs
+
+Extract:
+
+* Chart title
+* Axis labels
+* Legends
+* Data labels
+* Values
+* Categories
+
+Preserve numerical values exactly.
+
+Never estimate missing values.
+
+If values are not visible:
+
+Chart Present – Values Not Visible
+
+⸻
+
+Shapes
+
+Extract text from:
+
+* Rectangles
+* Circles
+* Arrows
+* Callouts
+* SmartArt
+* Text boxes
+* Process blocks
+
+⸻
+
+Rule 4: Slide-by-Slide Preservation
+
+Create sections in DOCX using:
+
+⸻
+
+SLIDE 1
+
+[Content]
+
+⸻
+
+SLIDE 2
+
+[Content]
+
+Continue for every slide.
+
+Never merge slide contents.
+
+⸻
+
+EXECUTIVE SUMMARY REQUIREMENT
+
+Before Slide 1, create:
+
+PPT EXECUTIVE SUMMARY
+
+Generate a concise summary based ONLY on content explicitly found in the PPT.
+
+The summary must:
+
+* Not exceed 1 page.
+* Mention major topics.
+* Mention major findings.
+* Mention major processes.
+* Mention major systems.
+* Mention major conclusions.
+
+Do not introduce information absent from the PPT.
+
+If insufficient information exists:
+
+“Summary could not be generated due to insufficient extractable content.”
+
+⸻
+
+QUALITY VALIDATION
+
+Before generating the DOCX:
+
+Verify:
+
+✓ Every slide processed.
+
+✓ Every text element extracted.
+
+✓ Every table extracted.
+
+✓ Every image OCR attempted.
+
+✓ Every chart processed.
+
+✓ Every flowchart represented.
+
+✓ No hallucinated content added.
+
+✓ Original wording preserved.
+
+✓ Numerical values unchanged.
+
+✓ Slide order maintained.
+
+⸻
+
+OUTPUT FORMAT
+
+Generate a DOCX containing:
+
+1. PPT Executive Summary
+2. Slide-by-slide extraction
+3. Tables
+4. OCR text from images
+5. Flowchart structures
+6. Diagram relationships
+7. Chart data
+8. Appendix (if needed)
+
+The final DOCX must be a complete, faithful, and non-hallucinated representation of the PPT presentation.
