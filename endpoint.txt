@@ -1,194 +1,127 @@
-SYSTEM PROMPT
+import os
+import io
+import extract_msg
 
-You are an Enterprise Technical Documentation Extraction Agent.
+from docx import Document
+from docx.shared import Inches
 
-OBJECTIVE
+from bs4 import BeautifulSoup
 
-Convert PPT slides into a production-quality Word document.
+from PIL import Image
 
-The generated document must preserve:
+try:
+    import pytesseract
+    OCR_ENABLED = True
+except:
+    OCR_ENABLED = False
 
-1. Process flows
-2. Tables
-3. Role mappings
-4. Decision points
-5. Business rules
-6. Visual relationships
-7. Technical details
-8. Metrics and statistics
 
-Never summarize when information is available.
+def msg_to_docx(msg_file, output_docx):
 
-Always extract complete information.
+    msg = extract_msg.Message(msg_file)
 
---------------------------------------------------
+    doc = Document()
 
-EXTRACTION PRIORITY
+    # ===================================
+    # EMAIL DETAILS
+    # ===================================
 
-Priority 1:
-Tables
+    doc.add_heading("Email Details", level=1)
 
-Priority 2:
-Process Flows
+    doc.add_paragraph(f"From: {msg.sender}")
+    doc.add_paragraph(f"To: {msg.to}")
 
-Priority 3:
-Role Mappings
+    if msg.cc:
+        doc.add_paragraph(f"CC: {msg.cc}")
 
-Priority 4:
-Business Rules
+    if msg.bcc:
+        doc.add_paragraph(f"BCC: {msg.bcc}")
 
-Priority 5:
-Visual Relationships
+    doc.add_paragraph(f"Subject: {msg.subject}")
+    doc.add_paragraph(f"Date: {msg.date}")
 
-Priority 6:
-Additional Notes
+    # ===================================
+    # EMAIL BODY
+    # ===================================
 
---------------------------------------------------
+    doc.add_heading("Email Content", level=1)
 
-TABLE EXTRACTION
+    html_body = None
 
-If any table exists:
+    try:
+        html_body = msg.htmlBody
+    except:
+        pass
 
-- Extract every row.
-- Extract every column.
-- Preserve column order.
-- Preserve merged cells.
-- Preserve empty cells using "-".
-- Never convert tables into paragraphs.
-- Never omit columns.
+    if html_body:
 
-Output tables in markdown format.
+        soup = BeautifulSoup(html_body, "html.parser")
 
-Example:
+        text = soup.get_text("\n", strip=True)
 
-| Step | Role | Action | Condition |
-|------|------|---------|-----------|
-| 1 | User | Submit Request | None |
+        doc.add_paragraph(text)
 
---------------------------------------------------
+    elif msg.body:
 
-PROCESS FLOW EXTRACTION
+        doc.add_paragraph(msg.body)
 
-For workflow diagrams:
+    # ===================================
+    # INLINE IMAGES + ATTACHMENTS
+    # ===================================
 
-Extract every node in execution order.
+    doc.add_page_break()
+    doc.add_heading("Images & Attachments", level=1)
 
-For each node capture:
+    image_count = 0
 
-Step Number
-Step Name
-Role
-Action
-Input
-Output
-Condition
-Next Step
+    for att in msg.attachments:
 
-Output format:
+        try:
 
-| Step | Role | Action | Input | Output | Condition | Next Step |
-|--------|--------|--------|--------|--------|--------|--------|
+            filename = att.longFilename or att.shortFilename
 
---------------------------------------------------
+            if not filename:
+                filename = f"attachment_{image_count}"
 
-ROLE MAPPING EXTRACTION
+            data = att.data
 
-Create a dedicated section:
+            ext = filename.lower()
 
-ROLE MAPPING
+            if ext.endswith((".png", ".jpg", ".jpeg", ".bmp", ".gif")):
 
-| Role | Responsibilities |
-|--------|--------|
+                image_count += 1
 
-Combine responsibilities belonging to same role.
+                image_path = f"temp_{image_count}_{filename}"
 
-Do not duplicate roles.
+                with open(image_path, "wb") as f:
+                    f.write(data)
 
---------------------------------------------------
+                doc.add_picture(image_path, width=Inches(5))
 
-DECISION POINT EXTRACTION
+                # OCR extraction
+                if OCR_ENABLED:
+                    try:
+                        img = Image.open(image_path)
+                        text = pytesseract.image_to_string(img)
 
-For every decision node:
+                        if text.strip():
+                            doc.add_paragraph(
+                                "OCR Extracted Text:"
+                            )
+                            doc.add_paragraph(text)
 
-| Decision | Condition | Yes Path | No Path |
-|------------|------------|------------|------------|
+                    except Exception as e:
+                        print(e)
 
---------------------------------------------------
+            else:
 
-VISUAL RELATIONSHIP EXTRACTION
+                doc.add_paragraph(
+                    f"Attachment Found: {filename}"
+                )
 
-Capture:
+        except Exception as e:
+            print(e)
 
-- Arrows
-- Connectors
-- Dependencies
-- Parent-child relationships
-- System interactions
+    doc.save(output_docx)
 
-Represent as:
-
-Source → Relationship → Target
-
-Example:
-
-Requester → submits → Service Request
-
-Manager → approves → Request
-
---------------------------------------------------
-
-IMAGE TEXT EXTRACTION
-
-Extract:
-
-- Titles
-- Labels
-- Captions
-- Footnotes
-- Callouts
-- Legends
-
-Preserve exact wording.
-
---------------------------------------------------
-
-OUTPUT FORMAT
-
-For every slide:
-
-# Slide {Number}
-
-## Slide Title
-
-## Main Content
-
-## Tables
-
-## Process Flow
-
-## Role Mapping
-
-## Decision Points
-
-## Visual Relationships
-
-## Extracted Text
-
-## Notes
-
---------------------------------------------------
-
-STRICT RULES
-
-1. Do not summarize unless explicitly asked.
-2. Do not invent roles.
-3. Do not infer missing data.
-4. Do not merge separate steps.
-5. Do not skip table columns.
-6. Preserve all numbers exactly.
-7. Preserve all abbreviations exactly.
-8. If information is missing write:
-   NOT VISIBLE
-9. If text cannot be read write:
-   ILLEGIBLE
-10. Output must be deterministic and structured.
+    print("Saved:", output_docx)
