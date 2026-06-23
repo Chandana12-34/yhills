@@ -1,5 +1,4 @@
 import os
-import io
 import extract_msg
 
 from docx import Document
@@ -9,22 +8,36 @@ from bs4 import BeautifulSoup
 
 from PIL import Image
 
+# OCR Support
 try:
     import pytesseract
+
     OCR_ENABLED = True
-except:
+
+    # Uncomment and update if needed
+    # pytesseract.pytesseract.tesseract_cmd = (
+    #     r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+    # )
+
+except ImportError:
     OCR_ENABLED = False
 
 
 def msg_to_docx(msg_file, output_docx):
 
+    print(f"\nOpening MSG File: {msg_file}")
+
+    # Load MSG
     msg = extract_msg.Message(msg_file)
 
+    print("MSG loaded successfully")
+
+    # Create DOCX
     doc = Document()
 
-    # ===================================
+    # ==================================================
     # EMAIL DETAILS
-    # ===================================
+    # ==================================================
 
     doc.add_heading("Email Details", level=1)
 
@@ -40,88 +53,202 @@ def msg_to_docx(msg_file, output_docx):
     doc.add_paragraph(f"Subject: {msg.subject}")
     doc.add_paragraph(f"Date: {msg.date}")
 
-    # ===================================
-    # EMAIL BODY
-    # ===================================
+    print("Metadata extracted")
 
+    # ==================================================
+    # EMAIL CONTENT
+    # ==================================================
+
+    doc.add_page_break()
     doc.add_heading("Email Content", level=1)
 
     html_body = None
 
     try:
         html_body = msg.htmlBody
-    except:
-        pass
+    except Exception as e:
+        print("HTML extraction error:", e)
 
     if html_body:
 
-        soup = BeautifulSoup(html_body, "html.parser")
+        print("HTML body found")
 
-        text = soup.get_text("\n", strip=True)
+        if isinstance(html_body, bytes):
+            html_body = html_body.decode(
+                "utf-8",
+                errors="ignore"
+            )
+
+        soup = BeautifulSoup(
+            html_body,
+            "html.parser"
+        )
+
+        text = soup.get_text(
+            separator="\n",
+            strip=True
+        )
 
         doc.add_paragraph(text)
 
     elif msg.body:
 
+        print("Using plain text body")
+
         doc.add_paragraph(msg.body)
 
-    # ===================================
-    # INLINE IMAGES + ATTACHMENTS
-    # ===================================
+    else:
+
+        doc.add_paragraph("No email content found.")
+
+    # ==================================================
+    # ATTACHMENTS
+    # ==================================================
 
     doc.add_page_break()
-    doc.add_heading("Images & Attachments", level=1)
+    doc.add_heading("Attachments & Images", level=1)
 
-    image_count = 0
+    attachment_count = len(msg.attachments)
+
+    doc.add_paragraph(
+        f"Total Attachments: {attachment_count}"
+    )
+
+    print(f"Attachments found: {attachment_count}")
+
+    image_counter = 0
+
+    temp_folder = "temp_images"
+
+    os.makedirs(temp_folder, exist_ok=True)
 
     for att in msg.attachments:
 
         try:
 
-            filename = att.longFilename or att.shortFilename
+            filename = (
+                att.longFilename
+                or att.shortFilename
+                or f"attachment_{image_counter}"
+            )
 
-            if not filename:
-                filename = f"attachment_{image_count}"
-
-            data = att.data
+            doc.add_paragraph(
+                f"Attachment: {filename}"
+            )
 
             ext = filename.lower()
 
-            if ext.endswith((".png", ".jpg", ".jpeg", ".bmp", ".gif")):
+            # Save attachment temporarily
+            temp_path = os.path.join(
+                temp_folder,
+                filename
+            )
 
-                image_count += 1
+            with open(temp_path, "wb") as f:
+                f.write(att.data)
 
-                image_path = f"temp_{image_count}_{filename}"
+            # Image handling
+            if ext.endswith(
+                (
+                    ".png",
+                    ".jpg",
+                    ".jpeg",
+                    ".bmp",
+                    ".gif",
+                    ".webp"
+                )
+            ):
 
-                with open(image_path, "wb") as f:
-                    f.write(data)
+                image_counter += 1
 
-                doc.add_picture(image_path, width=Inches(5))
+                doc.add_picture(
+                    temp_path,
+                    width=Inches(5)
+                )
 
-                # OCR extraction
+                print(
+                    f"Inserted image: {filename}"
+                )
+
+                # OCR
                 if OCR_ENABLED:
-                    try:
-                        img = Image.open(image_path)
-                        text = pytesseract.image_to_string(img)
 
-                        if text.strip():
+                    try:
+
+                        img = Image.open(
+                            temp_path
+                        )
+
+                        extracted_text = (
+                            pytesseract
+                            .image_to_string(img)
+                        )
+
+                        if extracted_text.strip():
+
                             doc.add_paragraph(
                                 "OCR Extracted Text:"
                             )
-                            doc.add_paragraph(text)
+
+                            doc.add_paragraph(
+                                extracted_text
+                            )
 
                     except Exception as e:
-                        print(e)
 
-            else:
-
-                doc.add_paragraph(
-                    f"Attachment Found: {filename}"
-                )
+                        print(
+                            f"OCR failed for {filename}: {e}"
+                        )
 
         except Exception as e:
-            print(e)
+
+            print(
+                f"Error processing attachment: {e}"
+            )
+
+    # ==================================================
+    # SAVE DOCX
+    # ==================================================
 
     doc.save(output_docx)
 
-    print("Saved:", output_docx)
+    print(f"\nDOCX saved successfully:")
+    print(output_docx)
+
+
+def main():
+
+    # Put your MSG file here
+
+    msg_file = (
+        r"Passport & Reliance - Fortnightly Newsletter #32 - 14-Jul-2023.msg"
+    )
+
+    output_docx = (
+        r"Passport_Newsletter_Output.docx"
+    )
+
+    if not os.path.exists(msg_file):
+
+        print(
+            f"\nMSG file not found:\n{msg_file}"
+        )
+
+        print(
+            "\nPlace the .msg file in the same folder as this script"
+        )
+
+        return
+
+    print("\nStarting Conversion...\n")
+
+    msg_to_docx(
+        msg_file,
+        output_docx
+    )
+
+    print("\nConversion Completed.")
+
+
+if __name__ == "__main__":
+    main()
