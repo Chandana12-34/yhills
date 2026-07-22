@@ -1,70 +1,18 @@
-import win32com.client
+def get_application_status(app_name, env_name):
+    """
+    Returns True only if every endpoint of the application is UP.
+    """
 
-word = win32com.client.Dispatch("Word.Application")
-word.Visible = True
+    endpoints = st.session_state.health_data.get(app_name, {}).get(env_name, {})
 
-doc = word.Documents.Open(
-    r"C:\Path\To\OneDocument.docx"
-)
+    if not endpoints:
+        return False
 
-print(dir(doc.SensitivityLabel))
+    for endpoint_name, endpoint_data in endpoints.items():
 
+        status = str(endpoint_data.get("status", "")).upper()
 
-new one
+        if status != "UP":
+            return False
 
-import win32com.client
-
-file_path = r"C:\Users\112539\PycharmProjects\Conversion\FENERGO (2)\FENERGO\Best Practices Document Management_RAG.docx"
-
-word = win32com.client.Dispatch("Word.Application")
-word.Visible = True
-
-doc = word.Documents.Open(file_path)
-
-try:
-    print("Sensitivity Label Object:")
-    print(doc.SensitivityLabel)
-
-    print("\nAvailable Methods:")
-    print(dir(doc.SensitivityLabel))
-
-except Exception as e:
-    print("Error:", e)
-
-input("Press Enter to close...")
-
-doc.Close(False)
-word.Quit()
-
-
-
-other new one
-import win32com.client
-
-file_path = r"YOUR_DOC_PATH"
-
-word = win32com.client.Dispatch("Word.Application")
-word.Visible = True
-
-doc = word.Documents.Open(file_path)
-
-try:
-    sl = doc.SensitivityLabel
-
-    labelInfo = sl.CreateLabelInfo()
-
-    labelInfo.LabelName = "Public"
-
-    sl.SetLabel(labelInfo, 0)
-
-    doc.Save()
-
-    print("SUCCESS")
-
-except Exception as e:
-    print("ERROR:", e)
-
-input("Press Enter...")
-
-doc.Close()
-word.Quit()
+    return True
