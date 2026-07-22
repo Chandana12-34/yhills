@@ -1,14 +1,16 @@
-def get_application_status(app_name, env_name):
+def get_application_status(app_name, env_name, cfg):
     """
-    Returns True only if every endpoint of the application is UP.
+    Returns True only if every endpoint in the selected application is UP.
     """
 
-    endpoints = st.session_state.health_data.get(app_name, {}).get(env_name, {})
+    env_cfg = cfg.applications[app_name].environments[env_name]
 
-    if not endpoints:
-        return False
+    for ep in env_cfg.endpoints:
 
-    for endpoint_name, endpoint_data in endpoints.items():
+        endpoint_data = st.session_state.health_data.get(ep.name)
+
+        if endpoint_data is None:
+            return False
 
         status = str(endpoint_data.get("status", "")).upper()
 
