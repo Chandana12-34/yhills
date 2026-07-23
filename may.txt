@@ -1,20 +1,47 @@
-def get_application_status(app_name, env_name, cfg):
-    """
-    Returns True only if every endpoint in the selected application is UP.
-    """
+def render_application_flow(cfg, env):
+    apps = list(cfg.applications.keys())
 
-    env_cfg = cfg.applications[app_name].environments[env_name]
+    html = '<div style="display:flex;align-items:center;justify-content:center;gap:30px;flex-wrap:wrap;">'
 
-    for ep in env_cfg.endpoints:
+    for i, app in enumerate(apps):
 
-        endpoint_data = st.session_state.health_data.get(ep.name)
+        state = get_application_status(app, env, cfg)
 
-        if endpoint_data is None:
-            return False
+        if state == "UP":
+            color = "#28a745"
+            icon = "🟢"
+        elif state == "DOWN":
+            color = "#dc3545"
+            icon = "🔴"
+        elif state == "UNKNOWN":
+            color = "#ffc107"
+            icon = "🟡"
+        else:
+            color = "#6c757d"
+            icon = "⚪"
 
-        status = str(endpoint_data.get("status", "")).upper()
+        html += f'''
+<div style="
+width:220px;
+height:120px;
+border:4px solid {color};
+border-radius:15px;
+background:{color}20;
+display:flex;
+flex-direction:column;
+justify-content:center;
+align-items:center;
+box-shadow:0 4px 10px rgba(0,0,0,.15);
+">
+<div style="font-size:34px;">{icon}</div>
+<div style="font-size:24px;font-weight:bold;color:{color};">{app}</div>
+<div style="font-size:16px;color:#555;">{state}</div>
+</div>
+'''
 
-        if status != "UP":
-            return False
+        if i != len(apps) - 1:
+            html += '<div style="font-size:45px;font-weight:bold;">➜</div>'
 
-    return True
+    html += "</div>"
+
+    st.markdown(html, unsafe_allow_html=True)
