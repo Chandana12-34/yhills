@@ -1,47 +1,71 @@
-def render_application_flow(cfg, env):
-    apps = list(cfg.applications.keys())
+st.markdown("""
+<style>
 
-    html = '<div style="display:flex;align-items:center;justify-content:center;gap:30px;flex-wrap:wrap;">'
+/* Remove the top white space */
+.block-container {
+    padding-top: 0rem !important;
+    padding-bottom: 1rem !important;
+    margin-top: 0rem !important;
+}
 
-    for i, app in enumerate(apps):
+/* Remove default Streamlit top padding */
+div[data-testid="stAppViewContainer"] .main .block-container {
+    padding-top: 0rem !important;
+}
 
-        state = get_application_status(app, env, cfg)
+/* Remove header space */
+header[data-testid="stHeader"] {
+    height: 0rem;
+    background: transparent;
+}
 
-        if state == "UP":
-            color = "#28a745"
-            icon = "🟢"
-        elif state == "DOWN":
-            color = "#dc3545"
-            icon = "🔴"
-        elif state == "UNKNOWN":
-            color = "#ffc107"
-            icon = "🟡"
-        else:
-            color = "#6c757d"
-            icon = "⚪"
+/* Reduce title spacing */
+h1 {
+    margin-top: 0rem !important;
+    padding-top: 0rem !important;
+}
 
-        html += f'''
-<div style="
-width:220px;
-height:120px;
-border:4px solid {color};
-border-radius:15px;
-background:{color}20;
-display:flex;
-flex-direction:column;
-justify-content:center;
-align-items:center;
-box-shadow:0 4px 10px rgba(0,0,0,.15);
-">
-<div style="font-size:34px;">{icon}</div>
-<div style="font-size:24px;font-weight:bold;color:{color};">{app}</div>
-<div style="font-size:16px;color:#555;">{state}</div>
-</div>
-'''
+/* Your existing table styles */
+.compact-table th,
+.compact-table td {
+    border: 1px solid #ddd;
+    padding: 6px;
+    font-size: 0.9rem;
+    vertical-align: top;
+    text-align: left;
+}
 
-        if i != len(apps) - 1:
-            html += '<div style="font-size:45px;font-weight:bold;">➜</div>'
+.compact-table th {
+    background: #f8f9fa;
+}
 
-    html += "</div>"
+.bg-up {
+    background:#e6f7ea;
+    color:#28a745;
+    padding:2px 6px;
+    border-radius:4px;
+}
 
-    st.markdown(html, unsafe_allow_html=True)
+.bg-down {
+    background:#fde8e8;
+    color:#dc3545;
+    padding:2px 6px;
+    border-radius:4px;
+}
+
+.bg-unknown {
+    background:#fff8e1;
+    color:#ffc107;
+    padding:2px 6px;
+    border-radius:4px;
+}
+
+.bg-error {
+    background:#f2f2f2;
+    color:#6c757d;
+    padding:2px 6px;
+    border-radius:4px;
+}
+
+</style>
+""", unsafe_allow_html=True)
