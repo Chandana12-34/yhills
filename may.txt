@@ -1,6 +1,6 @@
 def render_application_topology(app_name, env, cfg):
     """
-    Draws a topology for the selected application.
+    Draws topology for the selected application.
 
     Endpoints  --->  Application
     """
@@ -22,119 +22,237 @@ def render_application_topology(app_name, env, cfg):
 
     app_colour, app_icon = get_colour(app_status)
 
-    html = """
-    <div style="
-        display:flex;
-        justify-content:center;
-        align-items:center;
-        margin-top:20px;
-        margin-bottom:40px;
-    ">
-    """
+    # ---------------------------------------------------------
+    # Build endpoint rows
+    # Each endpoint and its arrow are kept in the SAME row.
+    # ---------------------------------------------------------
 
-    # Left side (Endpoints)
-    html += """
-    <div style="
-        display:flex;
-        flex-direction:column;
-        gap:20px;
-        margin-right:50px;
-    ">
-    """
+    endpoint_rows = ""
 
     for ep in endpoints:
 
         endpoint_data = st.session_state.health_data.get(ep.name)
 
         if endpoint_data:
-            status = str(endpoint_data.get("status", "UNKNOWN")).upper()
+            status = str(
+                endpoint_data.get("status", "UNKNOWN")
+            ).upper()
         else:
             status = "UNKNOWN"
 
         colour, icon = get_colour(status)
 
-        html += f"""
-        <div style="
-            width:240px;
-            border:3px solid {colour};
-            background:{colour}20;
-            border-radius:12px;
-            padding:15px;
-            box-shadow:0 3px 8px rgba(0,0,0,.15);
-        ">
-            <div style="font-size:18px;font-weight:bold;">
-                {icon} {ep.name}
+        endpoint_rows += f"""
+        <div class="topology-row">
+
+            <div class="endpoint-card">
+
+                <div class="endpoint-name">
+                    <span>{icon}</span>
+                    <span>{ep.name}</span>
+                </div>
+
+                <div
+                    class="endpoint-status"
+                    style="color:{colour};"
+                >
+                    {status}
+                </div>
+
             </div>
 
-            <div style="
-                color:{colour};
-                font-weight:bold;
-                margin-top:8px;
-            ">
-                {status}
+            <div class="topology-arrow">
+                ───►
             </div>
+
         </div>
         """
 
-    html += "</div>"
+    # ---------------------------------------------------------
+    # Complete topology
+    # ---------------------------------------------------------
 
-    # Middle arrows
-    html += """
-    <div style="
-        display:flex;
-        flex-direction:column;
-        justify-content:center;
-        align-items:center;
-        font-size:42px;
-        font-weight:bold;
-        margin-right:40px;
-    ">
-        ➜
-        <br>
-        ➜
-        <br>
-        ➜
+    html = f"""
+    <style>
+
+        * {{
+            box-sizing: border-box;
+        }}
+
+        body {{
+            margin: 0;
+            padding: 0;
+            overflow: visible;
+            font-family: Arial, sans-serif;
+        }}
+
+        .topology-container {{
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 55px;
+            padding: 10px 20px 25px 20px;
+        }}
+
+        /* LEFT SIDE */
+
+        .endpoint-list {{
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            flex-shrink: 0;
+        }}
+
+        /*
+        Endpoint + arrow are deliberately inside the same row.
+        This guarantees one arrow for every endpoint.
+        */
+
+        .topology-row {{
+            display: flex;
+            align-items: center;
+            gap: 30px;
+            min-height: 76px;
+        }}
+
+        .endpoint-card {{
+            width: 260px;
+            min-height: 76px;
+
+            border: 2px solid #6c757d;
+            border-radius: 10px;
+
+            padding: 12px 15px;
+
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+
+            background: #ffffff;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.10);
+        }}
+
+        .endpoint-name {{
+            font-size: 16px;
+            font-weight: 700;
+
+            display: flex;
+            align-items: center;
+            gap: 7px;
+
+            white-space: nowrap;
+        }}
+
+        .endpoint-status {{
+            font-size: 14px;
+            font-weight: 700;
+            margin-top: 7px;
+        }}
+
+        .topology-arrow {{
+            width: 80px;
+            flex-shrink: 0;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            font-size: 25px;
+            font-weight: 700;
+            color: #222;
+
+            white-space: nowrap;
+        }}
+
+        /* RIGHT SIDE */
+
+        .application-wrapper {{
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }}
+
+        .application-card {{
+            width: 280px;
+            min-height: 125px;
+
+            border: 4px solid {app_colour};
+            border-radius: 16px;
+
+            background: {app_colour}20;
+
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+
+            padding: 15px;
+
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+        }}
+
+        .application-icon {{
+            font-size: 34px;
+            line-height: 1;
+            margin-bottom: 7px;
+        }}
+
+        .application-name {{
+            font-size: 24px;
+            font-weight: 700;
+            color: {app_colour};
+            text-align: center;
+        }}
+
+        .application-status {{
+            margin-top: 8px;
+            font-size: 18px;
+            font-weight: 700;
+            color: {app_colour};
+        }}
+
+    </style>
+
+
+    <div class="topology-container">
+
+        <div class="endpoint-list">
+            {endpoint_rows}
+        </div>
+
+        <div class="application-wrapper">
+
+            <div class="application-card">
+
+                <div class="application-icon">
+                    {app_icon}
+                </div>
+
+                <div class="application-name">
+                    {app_name}
+                </div>
+
+                <div class="application-status">
+                    {app_status}
+                </div>
+
+            </div>
+
+        </div>
+
     </div>
     """
 
-    # Right side (Application)
-    html += f"""
-    <div style="
-        width:300px;
-        height:220px;
-        border:5px solid {app_colour};
-        background:{app_colour}20;
-        border-radius:18px;
-        display:flex;
-        flex-direction:column;
-        justify-content:center;
-        align-items:center;
-        box-shadow:0 5px 12px rgba(0,0,0,.2);
-    ">
+    # Dynamic iframe height so endpoints are not cut off.
+    topology_height = max(
+        350,
+        len(endpoints) * 92 + 50
+    )
 
-        <div style="font-size:48px;">
-            {app_icon}
-        </div>
-
-        <div style="
-            font-size:28px;
-            font-weight:bold;
-            color:{app_colour};
-        ">
-            {app_name}
-        </div>
-
-        <div style="
-            margin-top:12px;
-            font-size:20px;
-            font-weight:bold;
-        ">
-            {app_status}
-        </div>
-
-    </div>
-    """
-
-    html += "</div>"
-
-    st.markdown(html, unsafe_allow_html=True)
+    components.html(
+        html,
+        height=topology_height,
+        scrolling=False
+    )
