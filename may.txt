@@ -1,71 +1,140 @@
-st.markdown("""
-<style>
+def render_application_topology(app_name, env, cfg):
+    """
+    Draws a topology for the selected application.
 
-/* Remove the top white space */
-.block-container {
-    padding-top: 0rem !important;
-    padding-bottom: 1rem !important;
-    margin-top: 0rem !important;
-}
+    Endpoints  --->  Application
+    """
 
-/* Remove default Streamlit top padding */
-div[data-testid="stAppViewContainer"] .main .block-container {
-    padding-top: 0rem !important;
-}
+    env_cfg = cfg.applications[app_name].environments[env]
+    endpoints = env_cfg.endpoints
 
-/* Remove header space */
-header[data-testid="stHeader"] {
-    height: 0rem;
-    background: transparent;
-}
+    app_status = get_application_status(app_name, env, cfg)
 
-/* Reduce title spacing */
-h1 {
-    margin-top: 0rem !important;
-    padding-top: 0rem !important;
-}
+    def get_colour(status):
+        if status == "UP":
+            return "#28a745", "🟢"
+        elif status == "DOWN":
+            return "#dc3545", "🔴"
+        elif status == "UNKNOWN":
+            return "#ffc107", "🟡"
+        else:
+            return "#6c757d", "⚪"
 
-/* Your existing table styles */
-.compact-table th,
-.compact-table td {
-    border: 1px solid #ddd;
-    padding: 6px;
-    font-size: 0.9rem;
-    vertical-align: top;
-    text-align: left;
-}
+    app_colour, app_icon = get_colour(app_status)
 
-.compact-table th {
-    background: #f8f9fa;
-}
+    html = """
+    <div style="
+        display:flex;
+        justify-content:center;
+        align-items:center;
+        margin-top:20px;
+        margin-bottom:40px;
+    ">
+    """
 
-.bg-up {
-    background:#e6f7ea;
-    color:#28a745;
-    padding:2px 6px;
-    border-radius:4px;
-}
+    # Left side (Endpoints)
+    html += """
+    <div style="
+        display:flex;
+        flex-direction:column;
+        gap:20px;
+        margin-right:50px;
+    ">
+    """
 
-.bg-down {
-    background:#fde8e8;
-    color:#dc3545;
-    padding:2px 6px;
-    border-radius:4px;
-}
+    for ep in endpoints:
 
-.bg-unknown {
-    background:#fff8e1;
-    color:#ffc107;
-    padding:2px 6px;
-    border-radius:4px;
-}
+        endpoint_data = st.session_state.health_data.get(ep.name)
 
-.bg-error {
-    background:#f2f2f2;
-    color:#6c757d;
-    padding:2px 6px;
-    border-radius:4px;
-}
+        if endpoint_data:
+            status = str(endpoint_data.get("status", "UNKNOWN")).upper()
+        else:
+            status = "UNKNOWN"
 
-</style>
-""", unsafe_allow_html=True)
+        colour, icon = get_colour(status)
+
+        html += f"""
+        <div style="
+            width:240px;
+            border:3px solid {colour};
+            background:{colour}20;
+            border-radius:12px;
+            padding:15px;
+            box-shadow:0 3px 8px rgba(0,0,0,.15);
+        ">
+            <div style="font-size:18px;font-weight:bold;">
+                {icon} {ep.name}
+            </div>
+
+            <div style="
+                color:{colour};
+                font-weight:bold;
+                margin-top:8px;
+            ">
+                {status}
+            </div>
+        </div>
+        """
+
+    html += "</div>"
+
+    # Middle arrows
+    html += """
+    <div style="
+        display:flex;
+        flex-direction:column;
+        justify-content:center;
+        align-items:center;
+        font-size:42px;
+        font-weight:bold;
+        margin-right:40px;
+    ">
+        ➜
+        <br>
+        ➜
+        <br>
+        ➜
+    </div>
+    """
+
+    # Right side (Application)
+    html += f"""
+    <div style="
+        width:300px;
+        height:220px;
+        border:5px solid {app_colour};
+        background:{app_colour}20;
+        border-radius:18px;
+        display:flex;
+        flex-direction:column;
+        justify-content:center;
+        align-items:center;
+        box-shadow:0 5px 12px rgba(0,0,0,.2);
+    ">
+
+        <div style="font-size:48px;">
+            {app_icon}
+        </div>
+
+        <div style="
+            font-size:28px;
+            font-weight:bold;
+            color:{app_colour};
+        ">
+            {app_name}
+        </div>
+
+        <div style="
+            margin-top:12px;
+            font-size:20px;
+            font-weight:bold;
+        ">
+            {app_status}
+        </div>
+
+    </div>
+    """
+
+    html += "</div>"
+
+    st.markdown(html, unsafe_allow_html=True)
