@@ -1,254 +1,353 @@
-import os
-import extract_msg
+[8/3, 4:44 PM] Fahad: ##########################################################################
+# CALL LLM
+##########################################################################
 
-from docx import Document
-from docx.shared import Inches
+def call_llm(user_prompt):
 
-from bs4 import BeautifulSoup
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
 
-from PIL import Image
+    payload = {
 
-# OCR Support
-try:
-    import pytesseract
+        "model": MODEL_NAME,
 
-    OCR_ENABLED = True
+        "temperature": TEMPERATURE,
 
-    # Uncomment and update if needed
-    # pytesseract.pytesseract.tesseract_cmd = (
-    #     r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-    # )
+        "messages": [
 
-except ImportError:
-    OCR_ENABLED = False
+            {
+                "role": "system",
+                "content": SYSTEM_PROMPT
+            },
 
+            {
+                "role": "user",
+                "content": user_prompt
+            }
 
-def msg_to_docx(msg_file, output_docx):
+        ]
 
-    print(f"\nOpening MSG File: {msg_file}")
+    }
 
-    # Load MSG
-    msg = extract_msg.Message(msg_file)
-
-    print("MSG loaded successfully")
-
-    # Create DOCX
-    doc = Document()
-
-    # ==================================================
-    # EMAIL DETAILS
-    # ==================================================
-
-    doc.add_heading("Email Details", level=1)
-
-    doc.add_paragraph(f"From: {msg.sender}")
-    doc.add_paragraph(f"To: {msg.to}")
-
-    if msg.cc:
-        doc.add_paragraph(f"CC: {msg.cc}")
-
-    if msg.bcc:
-        doc.add_paragraph(f"BCC: {msg.bcc}")
-
-    doc.add_paragraph(f"Subject: {msg.subject}")
-    doc.add_paragraph(f"Date: {msg.date}")
-
-    print("Metadata extracted")
-
-    # ==================================================
-    # EMAIL CONTENT
-    # ==================================================
-
-    doc.add_page_break()
-    doc.add_heading("Email Content", level=1)
-
-    html_body = None
-
-    try:
-        html_body = msg.htmlBody
-    except Exception as e:
-        print("HTML extraction error:", e)
-
-    if html_body:
-
-        print("HTML body found")
-
-        if isinstance(html_body, bytes):
-            html_body = html_body.decode(
-                "utf-8",
-                errors="ignore"
-            )
-
-        soup = BeautifulSoup(
-            html_body,
-            "html.parser"
-        )
-
-        text = soup.get_text(
-            separator="\n",
-            strip=True
-        )
-
-        doc.add_paragraph(text)
-
-    elif msg.body:
-
-        print("Using plain text body")
-
-        doc.add_paragraph(msg.body)
-
-    else:
-
-        doc.add_paragraph("No email content found.")
-
-    # ==================================================
-    # ATTACHMENTS
-    # ==================================================
-
-    doc.add_page_break()
-    doc.add_heading("Attachments & Images", level=1)
-
-    attachment_count = len(msg.attachments)
-
-    doc.add_paragraph(
-        f"Total Attachments: {attachment_count}"
-    )
-
-    print(f"Attachments found: {attachment_count}")
-
-    image_counter = 0
-
-    temp_folder = "temp_images"
-
-    os.makedirs(temp_folder, exist_ok=True)
-
-    for att in msg.attachments:
+    for attempt in range(RETRY_COUNT):
 
         try:
 
-            filename = (
-                att.longFilename
-                or att.shortFilename
-                or f"attachment_{image_counter}"
+            response = requests.post(
+
+                API_URL,
+
+                headers=headers,
+
+                json=payload,
+
+                timeout=REQUEST_TIMEOUT
+
             )
 
-            doc.add_paragraph(
-                f"Attachment: {filename}"
+            response.raise_for_status()
+
+            data = response.json()
+
+            answer = data["choices"][0]["message"]["content"]
+
+            return answer
+
+        except Exception as ex:
+
+            logger.warning(
+                f"Attempt {attempt+1} failed : {ex}"
             )
 
-            ext = filename.lower()
+            time.sleep(2)
 
-            # Save attachment temporarily
-            temp_path = os.path.join(
-                temp_folder,
-                filename
-            )
+    raise Exception("LLM API Failed")
+[8/3, 4:45 PM] Fahad: ##########################################################################
+# CLEAN JSON
+##########################################################################
 
-            with open(temp_path, "wb") as f:
-                f.write(att.data)
+def clean_json(text):
 
-            # Image handling
-            if ext.endswith(
-                (
-                    ".png",
-                    ".jpg",
-                    ".jpeg",
-                    ".bmp",
-                    ".gif",
-                    ".webp"
-                )
-            ):
+    text = text.replace("```json","")
 
-                image_counter += 1
+    text = text.replace("```","")
 
-                doc.add_picture(
-                    temp_path,
-                    width=Inches(5)
-                )
+    start = text.find("{")
 
-                print(
-                    f"Inserted image: {filename}"
-                )
+    end = text.rfind("}")
 
-                # OCR
-                if OCR_ENABLED:
+    if start==-1 or end==-1:
 
-                    try:
+        raise Exception("No JSON Found")
 
-                        img = Image.open(
-                            temp_path
-                        )
+    text = text[start:end+1]
 
-                        extracted_text = (
-                            pytesseract
-                            .image_to_string(img)
-                        )
+    text = re.sub(
 
-                        if extracted_text.strip():
+        r"[\x00-\x1F]+",
 
-                            doc.add_paragraph(
-                                "OCR Extracted Text:"
-                            )
+        "",
 
-                            doc.add_paragraph(
-                                extracted_text
-                            )
+        text
 
-                    except Exception as e:
-
-                        print(
-                            f"OCR failed for {filename}: {e}"
-                        )
-
-        except Exception as e:
-
-            print(
-                f"Error processing attachment: {e}"
-            )
-
-    # ==================================================
-    # SAVE DOCX
-    # ==================================================
-
-    doc.save(output_docx)
-
-    print(f"\nDOCX saved successfully:")
-    print(output_docx)
-
-
-def main():
-
-    # Put your MSG file here
-
-    msg_file = (
-        r"Passport & Reliance - Fortnightly Newsletter #32 - 14-Jul-2023.msg"
     )
 
-    output_docx = (
-        r"Passport_Newsletter_Output.docx"
-    )
+    return text
+[8/3, 4:45 PM] Fahad: ##########################################################################
+# PARSE RESPONSE
+##########################################################################
 
-    if not os.path.exists(msg_file):
+def parse_response(response):
 
-        print(
-            f"\nMSG file not found:\n{msg_file}"
+    try:
+
+        cleaned = clean_json(response)
+
+        obj = json.loads(cleaned)
+
+        return obj
+
+    except Exception as ex:
+
+        logger.exception(ex)
+
+        return {
+
+            "issue_summary":"",
+
+            "issue_type":"",
+
+            "category":"",
+
+            "subcategory":"",
+
+            "root_cause":"",
+
+            "resolution":"",
+
+            "training_needed":"",
+
+            "training_topic":"",
+
+            "automation_opportunity":"",
+
+            "process_improvement":""
+
+        }
+[8/3, 4:45 PM] Fahad: ##########################################################################
+# CACHE
+##########################################################################
+
+def cached_analysis(ticket):
+
+    h = ticket["hash"]
+
+    if h in CACHE:
+
+        logger.info(
+
+            f"Using Cache : {ticket['ritm']}"
+
         )
 
-        print(
-            "\nPlace the .msg file in the same folder as this script"
-        )
+        return CACHE[h]
 
-        return
+    prompt = build_prompt(ticket)
 
-    print("\nStarting Conversion...\n")
+    answer = call_llm(prompt)
 
-    msg_to_docx(
-        msg_file,
-        output_docx
+    parsed = parse_response(answer)
+
+    CACHE[h] = parsed
+
+    return parsed
+[8/3, 4:45 PM] Fahad: ##########################################################################
+# ANALYZE TICKET
+##########################################################################
+
+def analyze_ticket(ticket):
+
+    try:
+
+        ai = cached_analysis(ticket)
+
+        output = {
+
+            "RITM Number":
+
+                ticket["ritm"],
+
+            "Issue Summary":
+
+                ai.get("issue_summary",""),
+
+            "Issue Type":
+
+                ai.get("issue_type",""),
+
+            "Category":
+
+                ai.get("category",""),
+
+            "Sub Category":
+
+                ai.get("subcategory",""),
+
+            "Root Cause":
+
+                ai.get("root_cause",""),
+
+            "Resolution":
+
+                ai.get("resolution",""),
+
+            "Training Needed":
+
+                ai.get("training_needed",""),
+
+            "Training Topic":
+
+                ai.get("training_topic",""),
+
+            "Automation Opportunity":
+
+                ai.get("automation_opportunity",""),
+
+            "Process Improvement":
+
+                ai.get("process_improvement",""),
+
+            "Priority":
+
+                ticket["priority"],
+
+            "Assignment Group":
+
+                ticket["assignment_group"],
+
+            "Department":
+
+                ticket["department"],
+
+            "Client Region":
+
+                ticket["region"],
+
+            "Requested For":
+
+                ticket["requested_for"],
+
+            "Champion":
+
+                ticket["champion"],
+
+            "Entity":
+
+                ticket["entity"],
+
+            "Created":
+
+                ticket["created"],
+
+            "Updated":
+
+                ticket["updated"]
+
+        }
+
+        return output
+
+    except Exception as ex:
+
+        logger.exception(ex)
+
+        return {
+
+            "RITM Number":ticket["ritm"],
+
+            "Issue Summary":"ERROR",
+
+            "Issue Type":"ERROR",
+
+            "Category":"ERROR",
+
+            "Sub Category":"ERROR",
+
+            "Root Cause":"ERROR",
+
+            "Resolution":"ERROR",
+
+            "Training Needed":"ERROR",
+
+            "Training Topic":"ERROR",
+
+            "Automation Opportunity":"ERROR",
+
+            "Process Improvement":"ERROR",
+
+            "Priority":ticket["priority"],
+
+            "Assignment Group":ticket["assignment_group"],
+
+            "Department":ticket["department"],
+
+            "Client Region":ticket["region"],
+
+            "Requested For":ticket["requested_for"],
+
+            "Champion":ticket["champion"],
+
+            "Entity":ticket["entity"],
+
+            "Created":ticket["created"],
+
+            "Updated":ticket["updated"]
+
+        }
+[8/3, 4:45 PM] Fahad: ##########################################################################
+# PROCESS ALL TICKETS
+##########################################################################
+
+def analyze_all_tickets(tickets):
+
+    logger.info("Analyzing Tickets...")
+
+    results = []
+
+    with ThreadPoolExecutor(
+
+        max_workers=MAX_WORKERS
+
+    ) as executor:
+
+        futures = [
+
+            executor.submit(
+
+                analyze_ticket,
+
+                ticket
+
+            )
+
+            for ticket in tickets
+
+        ]
+
+        for future in as_completed(futures):
+
+            results.append(
+
+                future.result()
+
+            )
+
+    logger.info(
+
+        f"Completed {len(results)} Tickets"
+
     )
 
-    print("\nConversion Completed.")
-
-
-if __name__ == "__main__":
-    main()
+    return pd.DataFrame(results)
