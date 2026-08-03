@@ -1,161 +1,332 @@
-# ---------------------------------------------------------
-    # APPLICATION TOPOLOGY
-    # ---------------------------------------------------------
+"""
+===============================================================================
+PROJECT : FENERGO RITM AI ANALYZER
+AUTHOR  : Sha Fahad
+VERSION : 2.0
 
-    row_height = 98
+DESCRIPTION
+-----------
+Reads ServiceNow RITM Excel
+↓
 
-    html = f"""
-    <div style="
-        width:100%;
-        display:flex;
-        justify-content:center;
-        margin-top:10px;
-        margin-bottom:20px;
-    ">
+Uses Internal LLM
 
-        <div style="
-            display:grid;
-            grid-template-columns:240px 110px 300px;
-            column-gap:25px;
-            align-items:center;
-        ">
-    """
+↓
 
-    # ---------------------------------------------------------
-    # ENDPOINTS
-    # ---------------------------------------------------------
+Classifies tickets
 
-    for index, ep in enumerate(endpoints, start=1):
+↓
 
-        endpoint_data = st.session_state.health_data.get(ep.name)
+Generates
 
-        if endpoint_data:
-            status = str(
-                endpoint_data.get("status", "UNKNOWN")
-            ).upper()
-        else:
-            status = "UNKNOWN"
+1. Ticket Analysis Sheet
 
-        colour, icon = get_colour(status)
+2. Dashboard Sheet
 
-        html += f"""
-        <div style="
-            grid-column:1;
-            grid-row:{index};
+3. Charts
 
-            width:240px;
-            box-sizing:border-box;
+===============================================================================
+"""
 
-            border:3px solid {colour};
-            background:{colour}20;
-            border-radius:12px;
+import os
+import re
+import json
+import time
+import hashlib
+import logging
+from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-            padding:12px 15px;
+import requests
+import pandas as pd
 
-            box-shadow:0 3px 8px rgba(0,0,0,.15);
+from dotenv import load_dotenv
 
-            align-self:center;
-        ">
+##########################################################################
+# LOAD ENVIRONMENT
+##########################################################################
 
-            <div style="
-                font-size:17px;
-                font-weight:bold;
-            ">
-                {icon} {ep.name}
-            </div>
+load_dotenv()
 
-            <div style="
-                color:{colour};
-                font-weight:bold;
-                margin-top:5px;
-            ">
-                {status}
-            </div>
+API_KEY = os.getenv("API_KEY")
 
-        </div>
+if API_KEY is None:
+    raise Exception("API_KEY not found in .env")
 
+##########################################################################
+# CONFIGURATION
+##########################################################################
 
-        <div style="
-            grid-column:2;
-            grid-row:{index};
+INPUT_FILE = "sampleritm.xlsx"
 
-            display:flex;
-            justify-content:center;
-            align-items:center;
+OUTPUT_FILE = "FENERGO_RITM_ANALYSIS.xlsx"
 
-            font-size:42px;
-            font-weight:bold;
-            height:{row_height}px;
-        ">
-            ⟶
-        </div>
-        """
+MODEL_NAME = "mistral-medium-2508-ITG"
 
-    # ---------------------------------------------------------
-    # APPLICATION BOX
-    # Spans ALL endpoint rows -> automatically centered
-    # ---------------------------------------------------------
+API_URL = "https://api.llm.cib.echonet/v1/openai/chat/completions"
 
-    endpoint_count = max(1, len(endpoints))
+MAX_WORKERS = 5
 
-    html += f"""
-        <div style="
-            grid-column:3;
+REQUEST_TIMEOUT = 120
 
-            grid-row:1 / span {endpoint_count};
+RETRY_COUNT = 3
 
-            width:300px;
-            height:220px;
-            box-sizing:border-box;
+TEMPERATURE = 0.1
 
-            border:5px solid {app_colour};
-            background:{app_colour}20;
-            border-radius:18px;
+##########################################################################
+# LOGGER
+##########################################################################
 
-            display:flex;
-            flex-direction:column;
-            justify-content:center;
-            align-items:center;
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s"
+)
 
-            align-self:center;
+logger = logging.getLogger(__name__)
 
-            box-shadow:0 5px 12px rgba(0,0,0,.2);
-        ">
+##########################################################################
+# FENERGO TAXONOMY
+##########################################################################
 
-            <div style="
-                font-size:48px;
-                line-height:1;
-            ">
-                {app_icon}
-            </div>
+TAXONOMY = {
 
-            <div style="
-                margin-top:8px;
-                font-size:28px;
-                font-weight:bold;
-                color:{app_colour};
-                text-align:center;
-            ">
-                {app_name}
-            </div>
+"Access Issue": [
+    "Access Issue",
+    "Access Management",
+    "Data Modification",
+    "Reports & Extracts"
+],
 
-            <div style="
-                margin-top:6px;
-                font-size:20px;
-                font-weight:bold;
-                text-align:center;
-            ">
-                {app_status}
-            </div>
+"Application Support": {
 
-        </div>
+    "Functional Support": [],
 
-        </div>
-    </div>
-    """
+    "Technical Support": [
 
-    components.html(
-        html,
-        height=max(350, len(endpoints) * row_height + 40),
-        scrolling=False
-    )
+        "Infrastructure Issue",
+
+        "Up & Downstream with GCARS",
+
+        "Up & Downstream with CRDS",
+
+        "Up & Downstream with MDM",
+
+        "Up & Downstream with ONEKYC",
+
+        "Up & Downstream with TPAPI",
+
+        "Up & Downstream with SIGNPLUS",
+
+        "Up & Downstream with CERISE"
+
+    ]
+},
+
+"Application Issue": {
+
+    "Performance and Slowness": [],
+
+    "Decision Making": [],
+
+    "Data Flow Internal": [],
+
+    "Front Office Initiation / Validation": [],
+
+    "Hierarchy": [],
+
+    "KYC Escalation Form": [],
+
+    "Screening Issue": [],
+
+    "User Interface": [],
+
+    "Workflow Exception": [],
+
+    "Other": []
+
+}
+
+}
+
+##########################################################################
+# REMOVE HTML
+##########################################################################
+
+def remove_html(text):
+
+    if pd.isna(text):
+
+        return ""
+
+    text = str(text)
+
+    text = re.sub("<.*?>", " ", text)
+
+    return text
+
+##########################################################################
+# REMOVE EXTRA SPACES
+##########################################################################
+
+def clean_spaces(text):
+
+    text = re.sub(r"\s+", " ", text)
+
+    return text.strip()
+
+##########################################################################
+# REMOVE SERVICENOW METADATA
+##########################################################################
+
+def clean_servicenow_notes(text):
+
+    if not text:
+
+        return ""
+
+    patterns = [
+
+        r"Infos:.*?$",
+
+        r"State\s*-\s*Open",
+
+        r"State\s*-\s*On Hold",
+
+        r"APS L1 Support",
+
+        r"Updated by.*",
+
+        r"Created by.*",
+
+        r"Work notes.*",
+
+        r"Additional comments.*"
+
+    ]
+
+    for p in patterns:
+
+        text = re.sub(
+
+            p,
+
+            "",
+
+            text,
+
+            flags=re.IGNORECASE | re.MULTILINE
+
+        )
+
+    return clean_spaces(text)
+
+##########################################################################
+# HASH
+##########################################################################
+
+def generate_hash(short_desc, desc):
+
+    txt = str(short_desc) + str(desc)
+
+    return hashlib.sha256(
+
+        txt.encode()
+
+    ).hexdigest()
+
+##########################################################################
+# CACHE
+##########################################################################
+
+CACHE = {}
+
+##########################################################################
+# SYSTEM PROMPT
+##########################################################################
+
+SYSTEM_PROMPT = f"""
+You are a senior BNP Paribas Fenergo L2 Support Engineer.
+
+Your task is to analyze one ServiceNow RITM.
+
+Return ONLY VALID JSON.
+
+Never return markdown.
+
+Never return explanation.
+
+Classify the ticket according to the following taxonomy.
+
+Issue Types
+
+Access Issue
+
+Application Support
+
+Application Issue
+
+Application Support Categories
+
+Functional Support
+
+Technical Support
+
+Technical Support Sub Categories
+
+Infrastructure Issue
+
+Up & Downstream with GCARS
+
+Up & Downstream with CRDS
+
+Up & Downstream with MDM
+
+Up & Downstream with ONEKYC
+
+Up & Downstream with TPAPI
+
+Up & Downstream with SIGNPLUS
+
+Up & Downstream with CERISE
+
+Application Issue Categories
+
+Performance and Slowness
+
+Decision Making
+
+Data Flow Internal
+
+Front Office Initiation / Validation
+
+Hierarchy
+
+KYC Escalation Form
+
+Screening Issue
+
+User Interface
+
+Workflow Exception
+
+Other
+
+Return JSON
+
+{{
+"issue_summary":"",
+"issue_type":"",
+"category":"",
+"subcategory":"",
+"root_cause":"",
+"resolution":"",
+"training_needed":"",
+"training_topic":"",
+"automation_opportunity":"",
+"process_improvement":""
+}}
+
+Do not invent categories.
+
+Choose only from the allowed taxonomy.
+"""
