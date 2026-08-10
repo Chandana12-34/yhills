@@ -1,72 +1,103 @@
-def normalize_category(category, issue_summary=""):
+def normalize_text(value):
+    """Normalize text for reliable keyword matching."""
+    if value is None:
+        return ""
+
+    return str(value).strip().lower()
+
+
+def classify_application_support(summary):
     """
-    Normalize AI-generated categories into approved parent categories
-    while preserving the specific issue topic.
+    Classify Application Support tickets into
+    Category + Sub Category.
     """
 
-    category = str(category).strip()
-    issue_summary = str(issue_summary).strip()
+    text = normalize_text(summary)
 
-    text = f"{category} {issue_summary}".lower()
+    # -------------------------------------------------
+    # Functional Support subcategories
+    # -------------------------------------------------
 
-    # Application-related issues
-    application_keywords = [
-        "application issue",
-        "application error",
-        "application failure",
-        "application problem",
-        "application performance",
-        "application workflow",
-        "system error",
-        "system failure",
-        "application not working"
-    ]
+    if any(keyword in text for keyword in [
+        "performance",
+        "slow",
+        "slowness",
+        "timeout",
+        "takes too long",
+        "response time"
+    ]):
+        return "Functional Support", "Performance and Slowness"
 
-    if any(keyword in text for keyword in application_keywords):
-        return "Application Issue"
+    if any(keyword in text for keyword in [
+        "decision making",
+        "decision stage",
+        "decision",
+        "decision rule"
+    ]):
+        return "Functional Support", \
+               "Decision Making (Issue faced at Decision Stage)"
 
-    # Functional support
-    functional_keywords = [
+    if any(keyword in text for keyword in [
+        "data flow",
+        "internal flow",
+        "data between tasks",
+        "data between stages"
+    ]):
+        return "Functional Support", \
+               "Data Flow Internal (Internal flow of data between tasks and stages)"
+
+    if any(keyword in text for keyword in [
+        "front office",
+        "business power",
+        "initiation",
+        "validation"
+    ]):
+        return "Functional Support", \
+               "Front Office Initiation/Validation (Business Power)"
+
+    if any(keyword in text for keyword in [
+        "hierarchy",
+        "hierarchies"
+    ]):
+        return "Functional Support", \
+               "Hierarchy (Issue at creation or display of Hierarchy)"
+
+    if any(keyword in text for keyword in [
+        "kyc",
+        "escalation form"
+    ]):
+        return "Functional Support", \
+               "KYC and Escalation Form"
+
+    if any(keyword in text for keyword in [
+        "screening",
+        "screening issue"
+    ]):
+        return "Functional Support", "Screening Issue"
+
+    if any(keyword in text for keyword in [
+        "user interface",
+        "ui issue",
+        "ui",
+        "wrong data in ui",
+        "missing data in ui",
+        "missing field",
+        "field not displayed",
+        "display issue"
+    ]):
+        return "Functional Support", \
+               "User Interface (Issue with wrong or missing data in UI)"
+
+    if any(keyword in text for keyword in [
         "workflow exception",
         "workflow issue",
-        "workflow problem",
-        "decision making",
-        "decision-making",
-        "business process",
-        "functional issue",
-        "functional problem",
-        "process issue"
-    ]
+        "workflow error",
+        "workflow"
+    ]):
+        return "Functional Support", "Workflow Exception"
 
-    if any(keyword in text for keyword in functional_keywords):
-        return "Functional Support"
+    # -------------------------------------------------
+    # If it doesn't match a known functional category
+    # -------------------------------------------------
 
-    # Technical support
-    technical_keywords = [
-        "performance issue",
-        "performance problem",
-        "slow",
-        "timeout",
-        "technical issue",
-        "technical problem",
-        "integration issue",
-        "interface issue",
-        "api issue",
-        "connectivity issue"
-    ]
-
-    if any(keyword in text for keyword in technical_keywords):
-        return "Technical Support"
-
-    # Preserve already-approved categories
-    approved_categories = {
-        "functional support",
-        "technical support",
-        "application issue"
-    }
-
-    if category.lower() in approved_categories:
-        return category.title()
-
-    # Default
-    return category
+    return "Functional Support", "Other"
