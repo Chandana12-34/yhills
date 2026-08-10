@@ -1,123 +1,46 @@
-# ============================================================
-# FUNCTIONAL SUPPORT
-# ============================================================
-if category.lower() == "functional support":
+# ---------------------------------------------------------
+# User issue analysis
+# ---------------------------------------------------------
+user_issue_summary = (
+    df[
+        df["Requested For"].notna()
+        & df["Category"].notna()
+        & df["Sub Category"].notna()
+        & (df["Requested For"].astype(str).str.strip() != "")
+        & (df["Category"].astype(str).str.strip() != "")
+        & (df["Sub Category"].astype(str).str.strip() != "")
+    ]
+    .groupby(["Requested For", "Category", "Sub Category"])
+    .size()
+    .reset_index(name="Count")
+    .sort_values(
+        ["Count", "Requested For"],
+        ascending=[False, True]
+    )
+)
 
-    # If the source already contains an approved sub-category,
-    # preserve it exactly.
-    approved_functional_subcategories = {
-        "performance and slowness":
-            "Performance and Slowness",
+dashboard["user_issue_summary"] = user_issue_summary
 
-        "decision making (issue faced at decision stage)":
-            "Decision Making (Issue faced at Decision Stage)",
 
-        "data flow internal (internal flow of data between tasks and stages)":
-            "Data Flow Internal (Internal flow of data between tasks and stages)",
+# ---------------------------------------------------------
+# Champion issue analysis
+# ---------------------------------------------------------
+champion_issue_summary = (
+    df[
+        df["Champion"].notna()
+        & df["Category"].notna()
+        & df["Sub Category"].notna()
+        & (df["Champion"].astype(str).str.strip() != "")
+        & (df["Category"].astype(str).str.strip() != "")
+        & (df["Sub Category"].astype(str).str.strip() != "")
+    ]
+    .groupby(["Champion", "Category", "Sub Category"])
+    .size()
+    .reset_index(name="Count")
+    .sort_values(
+        ["Count", "Champion"],
+        ascending=[False, True]
+    )
+)
 
-        "front office initiation/validation (business power)":
-            "Front Office Initiation/Validation (Business Power)",
-
-        "hierarchy (issue at creation or display of hierarchy)":
-            "Hierarchy (Issue at creation or display of Hierarchy)",
-
-        "kyc and escalation form":
-            "KYC and Escalation Form",
-
-        "screening issue":
-            "Screening Issue",
-
-        "user interface (issue with wrong or missing data in ui)":
-            "User Interface (Issue with wrong or missing data in UI)",
-
-        "workflow exception":
-            "Workflow Exception",
-
-        "other":
-            "Other"
-    }
-
-    normalized_subcategory = subcategory.lower()
-
-    if normalized_subcategory in approved_functional_subcategories:
-        return approved_functional_subcategories[normalized_subcategory]
-
-    # --------------------------------------------------------
-    # Infer Functional Support sub-category from issue summary
-    # --------------------------------------------------------
-
-    if any(keyword in issue_summary for keyword in [
-        "slow",
-        "slowness",
-        "performance",
-        "taking too long",
-        "takes too long",
-        "timeout"
-    ]):
-        return "Performance and Slowness"
-
-    if any(keyword in issue_summary for keyword in [
-        "decision making",
-        "decision stage",
-        "decision"
-    ]):
-        return "Decision Making (Issue faced at Decision Stage)"
-
-    if any(keyword in issue_summary for keyword in [
-        "data flow internal",
-        "internal data flow",
-        "data flow between",
-        "data not flowing",
-        "data flow"
-    ]):
-        return "Data Flow Internal (Internal flow of data between tasks and stages)"
-
-    if any(keyword in issue_summary for keyword in [
-        "front office",
-        "business power",
-        "initiation",
-        "validation"
-    ]):
-        return "Front Office Initiation/Validation (Business Power)"
-
-    if any(keyword in issue_summary for keyword in [
-        "hierarchy",
-        "hierarchy creation",
-        "hierarchy display"
-    ]):
-        return "Hierarchy (Issue at creation or display of Hierarchy)"
-
-    if any(keyword in issue_summary for keyword in [
-        "kyc",
-        "escalation form"
-    ]):
-        return "KYC and Escalation Form"
-
-    if any(keyword in issue_summary for keyword in [
-        "screening",
-        "screening issue"
-    ]):
-        return "Screening Issue"
-
-    if any(keyword in issue_summary for keyword in [
-        "user interface",
-        "ui issue",
-        "ui problem",
-        "wrong data in ui",
-        "missing data in ui",
-        "display issue",
-        "not visible",
-        "missing on screen"
-    ]):
-        return "User Interface (Issue with wrong or missing data in UI)"
-
-    if any(keyword in issue_summary for keyword in [
-        "workflow exception",
-        "workflow error",
-        "workflow issue",
-        "workflow problem",
-        "workflow"
-    ]):
-        return "Workflow Exception"
-
-    return "Other"
+dashboard["champion_issue_summary"] = champion_issue_summary
