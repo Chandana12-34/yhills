@@ -1,32 +1,236 @@
-# ----- User Issue Analysis -----
-    dash_ws.write(row, 0, "User Issue Analysis", title_fmt)
-    row += 1
+# ============================================================
+# APPROVED CLASSIFICATION TAXONOMY
+# ============================================================
 
-    user_issue_summary = dashboard["user_issue_summary"].head(20)
+FUNCTIONAL_SUPPORT_SUBCATEGORIES = [
+    "Performance and Slowness",
+    "Decision Making (Issue faced at Decision Stage)",
+    "Data Flow Internal (Internal flow of data between tasks and stages)",
+    "Front Office Initiation/Validation (Business Power)",
+    "Hierarchy (Issue at creation or display of Hierarchy)",
+    "KYC and Escalation Form",
+    "Screening Issue",
+    "User Interface (Issue with wrong or missing data in UI)",
+    "Workflow Exception",
+    "Other"
+]
 
-    user_issue_summary.to_excel(
-        writer,
-        sheet_name="Dashboard",
-        startrow=row,
-        startcol=0,
-        index=False
-    )
+TECHNICAL_SUPPORT_SUBCATEGORIES = [
+    "Up & Downstream with CRDS",
+    "Up & Downstream with GCARS",
+    "Other"
+]
 
-    row += len(user_issue_summary) + 4
+APPLICATION_ISSUE_SUBCATEGORIES = [
+    "Performance and Slowness",
+    "Decision Making (Issue faced at Decision Stage)",
+    "Data Flow Internal (Internal flow of data between tasks and stages)",
+    "Front Office Initiation/Validation (Business Power)",
+    "Hierarchy (Issue at creation or display of Hierarchy)",
+    "KYC and Escalation Form",
+    "Screening Issue",
+    "User Interface (Issue with wrong or missing data in UI)",
+    "Workflow Exception",
+    "Other"
+]
 
 
-    # ----- Champion Issue Analysis -----
-    dash_ws.write(row, 0, "Champion Issue Analysis", title_fmt)
-    row += 1
+# ============================================================
+# AI TICKET CLASSIFICATION
+# ============================================================
 
-    champion_issue_summary = dashboard["champion_issue_summary"].head(20)
+def classify_ticket_with_ai(issue_type, issue_summary, description=""):
+    """
+    Classify Application Support and Application Issue tickets
+    using the LLM.
 
-    champion_issue_summary.to_excel(
-        writer,
-        sheet_name="Dashboard",
-        startrow=row,
-        startcol=0,
-        index=False
-    )
+    Returns:
+        (category, sub_category)
+    """
 
-    row += len(champion_issue_summary) + 4
+    issue_type = str(issue_type or "").strip()
+    issue_summary = str(issue_summary or "").strip()
+    description = str(description or "").strip()
+
+    # --------------------------------------------------------
+    # Application Support
+    # --------------------------------------------------------
+
+    if issue_type.lower() == "application support":
+
+        taxonomy = {
+            "Functional Support": FUNCTIONAL_SUPPORT_SUBCATEGORIES,
+            "Technical Support": TECHNICAL_SUPPORT_SUBCATEGORIES,
+            "Other": ["Other"]
+        }
+
+        instruction = """
+For Application Support:
+
+The Category MUST be exactly one of:
+
+- Functional Support
+- Technical Support
+- Other
+
+If Category is Functional Support, choose the Sub Category
+ONLY from the Functional Support list.
+
+If Category is Technical Support, choose the Sub Category
+ONLY from the Technical Support list.
+
+Use the Issue Summary as the primary source of truth.
+"""
+
+    # --------------------------------------------------------
+    # Application Issue
+    # --------------------------------------------------------
+
+    elif issue_type.lower() == "application issue":
+
+        taxonomy = {
+            "Application Issue": APPLICATION_ISSUE_SUBCATEGORIES
+        }
+
+        instruction = """
+For Application Issue:
+
+The Category MUST be:
+
+Application Issue
+
+The Sub Category MUST be selected ONLY from the
+Application Issue sub-category list.
+
+Use the Issue Summary as the primary source of truth.
+"""
+
+    else:
+        return "Other", "Other"
+
+    # --------------------------------------------------------
+    # LLM Prompt
+    # --------------------------------------------------------
+
+    prompt = f"""
+You are an enterprise Fenergo ticket classification system.
+
+Classify the following ticket using ONLY the approved taxonomy.
+
+{instruction}
+
+APPROVED TAXONOMY:
+
+{json.dumps(taxonomy, indent=2)}
+
+TICKET INFORMATION
+------------------
+
+Issue Type:
+{issue_type}
+
+Issue Summary:
+{issue_summary}
+
+Description:
+{description}
+
+CLASSIFICATION RULES:
+
+1. Analyze the actual Issue Summary carefully.
+2. Use Description only as supporting information.
+3. Do NOT rely only on the existing Category or Sub Category.
+4. Select the most specific applicable classification.
+5. Never invent a category.
+6. Never invent a sub-category.
+7. Use ONLY values from the approved taxonomy.
+8. Use "Other" ONLY when the ticket genuinely cannot be classified.
+9. Return JSON only.
+10. Do not return explanations.
+
+Return exactly this JSON structure:
+
+{{
+    "category": "approved category",
+    "subcategory": "approved sub-category"
+}}
+"""
+
+    # --------------------------------------------------------
+    # Call LLM
+    # --------------------------------------------------------
+
+    try:
+
+        response = llm_client.chat.completions.create(
+            model=LLM_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a highly accurate enterprise "
+                        "ticket classification system. "
+                        "Follow the provided taxonomy exactly."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0
+        )
+
+        result = response.choices[0].message.content.strip()
+
+        # Remove accidental Markdown code fences
+        if result.startswith("```"):
+            result = result.replace("```json", "")
+            result = result.replace("```", "")
+            result = result.strip()
+
+        classification = json.loads(result)
+
+        ai_category = str(
+            classification.get("category", "Other")
+        ).strip()
+
+        ai_subcategory = str(
+            classification.get("subcategory", "Other")
+        ).strip()
+
+        # ----------------------------------------------------
+        # STRICT VALIDATION
+        # ----------------------------------------------------
+
+        # Invalid Category
+        if ai_category not in taxonomy:
+            print(
+                f"Invalid AI category: {ai_category}"
+            )
+            return "Other", "Other"
+
+        # Invalid Sub Category
+        if ai_subcategory not in taxonomy[ai_category]:
+            print(
+                f"Invalid AI sub-category: {ai_subcategory}"
+            )
+            return ai_category, "Other"
+
+        return ai_category, ai_subcategory
+
+    except json.JSONDecodeError as e:
+
+        print(
+            f"AI returned invalid JSON: {e}"
+        )
+
+        return "Other", "Other"
+
+    except Exception as e:
+
+        print(
+            f"AI classification failed: {e}"
+        )
+
+        return "Other", "Other"
