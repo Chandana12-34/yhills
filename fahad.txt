@@ -1,605 +1,72 @@
-[8/3, 4:45 PM] Fahad: ##########################################################################
-# PROCESS ALL TICKETS
-##########################################################################
-
-def analyze_all_tickets(tickets):
-
-    logger.info("Analyzing Tickets...")
-
-    results = []
-
-    with ThreadPoolExecutor(
-
-        max_workers=MAX_WORKERS
-
-    ) as executor:
-
-        futures = [
-
-            executor.submit(
-
-                analyze_ticket,
-
-                ticket
-
-            )
-
-            for ticket in tickets
-
-        ]
-
-        for future in as_completed(futures):
-
-            results.append(
-
-                future.result()
-
-            )
-
-    logger.info(
-
-        f"Completed {len(results)} Tickets"
-
-    )
-
-    return pd.DataFrame(results)
-[8/3, 4:47 PM] Fahad: ##########################################################################
-# DASHBOARD
-##########################################################################
-
-def generate_dashboard(df):
-
-    logger.info("Generating Dashboard...")
-
-    dashboard = {}
-
-    #######################################################################
-    # OVERALL STATS
-    #######################################################################
-
-    dashboard["Total Tickets"] = len(df)
-
-    dashboard["Total Users"] = df["Requested For"].nunique()
-
-    dashboard["Total Regions"] = df["Client Region"].nunique()
-
-    dashboard["Total Champions"] = df["Champion"].nunique()
-
-    dashboard["Total Departments"] = df["Department"].nunique()
-
-    dashboard["Total Assignment Groups"] = df["Assignment Group"].nunique()
-
-    #######################################################################
-    # ISSUE SUMMARY
-    #######################################################################
-
-    issue_summary = (
-        df.groupby("Category")
-        .size()
-        .reset_index(name="Count")
-        .sort_values("Count", ascending=False)
-    )
-
-    issue_summary["Percentage"] = (
-        issue_summary["Count"]
-        / len(df)
-        * 100
-    ).round(2)
-
-    #######################################################################
-    # ISSUE TYPE
-    #######################################################################
-
-    issue_type_summary = (
-        df.groupby("Issue Type")
-        .size()
-        .reset_index(name="Count")
-        .sort_values("Count", ascending=False)
-    )
-
-    issue_type_summary["Percentage"] = (
-        issue_type_summary["Count"]
-        / len(df)
-        * 100
-    ).round(2)
-
-    #######################################################################
-    # REGION
-    #######################################################################
-
-    region_summary = (
-        df.groupby("Client Region")
-        .size()
-        .reset_index(name="Count")
-        .sort_values("Count", ascending=False)
-    )
-
-    #######################################################################
-    # USER
-    #######################################################################
-
-    user_summary = (
-        df.groupby("Requested For")
-        .size()
-        .reset_index(name="Count")
-        .sort_values("Count", ascending=False)
-    )
-
-    #######################################################################
-    # CHAMPION
-    #######################################################################
-
-    champion_summary = (
-        df.groupby("Champion")
-        .size()
-        .reset_index(name="Count")
-        .sort_values("Count", ascending=False)
-    )
-
-    #######################################################################
-    # DEPARTMENT
-    #######################################################################
-
-    department_summary = (
-        df.groupby("Department")
-        .size()
-        .reset_index(name="Count")
-        .sort_values("Count", ascending=False)
-    )
-
-    #######################################################################
-    # ENTITY
-    #######################################################################
-
-    entity_summary = (
-        df.groupby("Entity")
-        .size()
-        .reset_index(name="Count")
-        .sort_values("Count", ascending=False)
-    )
-
-    #######################################################################
-    # PRIORITY
-    #######################################################################
-
-    priority_summary = (
-        df.groupby("Priority")
-        .size()
-        .reset_index(name="Count")
-        .sort_values("Count", ascending=False)
-    )
-
-    #######################################################################
-    # AUTOMATION
-    #######################################################################
-
-    automation_summary = (
-        df.groupby("Automation Opportunity")
-        .size()
-        .reset_index(name="Count")
-        .sort_values("Count", ascending=False)
-    )
-
-    #######################################################################
-    # TRAINING
-    #######################################################################
-
-    training_summary = (
-        df.groupby("Training Topic")
-        .size()
-        .reset_index(name="Count")
-        .sort_values("Count", ascending=False)
-    )
-
-    #######################################################################
-    # PROCESS IMPROVEMENT
-    #######################################################################
-
-    process_summary = (
-        df.groupby("Process Improvement")
-        .size()
-        .reset_index(name="Count")
-        .sort_values("Count", ascending=False)
-    )
-
-    #######################################################################
-    # REGION VS ISSUE
-    #######################################################################
-
-    region_issue = pd.crosstab(
-
-        df["Client Region"],
-
-        df["Category"]
-
-    )
-
-    #######################################################################
-    # USER VS ISSUE
-    #######################################################################
-
-    user_issue = pd.crosstab(
-
-        df["Requested For"],
-
-        df["Category"]
-
-    )
-
-    #######################################################################
-    # CHAMPION VS ISSUE
-    #######################################################################
-
-    champion_issue = pd.crosstab(
-
-        df["Champion"],
-
-        df["Category"]
-
-    )
-
-    dashboard["issue_summary"] = issue_summary
-
-    dashboard["issue_type_summary"] = issue_type_summary
-
-    dashboard["region_summary"] = region_summary
-
-    dashboard["user_summary"] = user_summary
-
-    dashboard["champion_summary"] = champion_summary
-
-    dashboard["department_summary"] = department_summary
-
-    dashboard["entity_summary"] = entity_summary
-
-    dashboard["priority_summary"] = priority_summary
-
-    dashboard["automation_summary"] = automation_summary
-
-    dashboard["training_summary"] = training_summary
-
-    dashboard["process_summary"] = process_summary
-
-    dashboard["region_issue"] = region_issue
-
-    dashboard["user_issue"] = user_issue
-
-    dashboard["champion_issue"] = champion_issue
-
-    return dashboard
-[8/3, 4:48 PM] Fahad: ##########################################################################
-# EXPORT TO EXCEL
-##########################################################################
-
-def export_excel(ticket_df, dashboard):
-
-    logger.info("Exporting Excel...")
-
-    with pd.ExcelWriter(
-        OUTPUT_FILE,
-        engine="xlsxwriter"
-    ) as writer:
-
-        workbook = writer.book
-
-        ###################################################################
-        # FORMATS
-        ###################################################################
-
-        header = workbook.add_format({
-
-            "bold": True,
-            "bg_color": "#1F4E78",
-            "font_color": "white",
-            "border": 1,
-            "align": "center",
-            "valign": "vcenter"
-
-        })
-
-        cell = workbook.add_format({
-
-            "text_wrap": True,
-            "border": 1,
-            "valign": "top"
-
-        })
-
-        title = workbook.add_format({
-
-            "bold": True,
-            "font_size": 16
-
-        })
-
-        ###################################################################
-        # SHEET 1
-        ###################################################################
-
-        ticket_df.to_excel(
-
-            writer,
-
-            sheet_name="Ticket Analysis",
-
-            index=False
-
-        )
-
-        ws = writer.sheets["Ticket Analysis"]
-
-        for col_num, value in enumerate(ticket_df.columns):
-
-            ws.write(
-
-                0,
-
-                col_num,
-
-                value,
-
-                header
-
-            )
-
-        for i, col in enumerate(ticket_df.columns):
-
-            width = max(
-
-                ticket_df[col]
-
-                .astype(str)
-
-                .map(len)
-
-                .max(),
-
-                len(col)
-
-            )
-
-            ws.set_column(
-
-                i,
-
-                i,
-
-                min(width + 5, 50),
-
-                cell
-
-            )
-
-        ws.freeze_panes(1, 0)
-        ws.autofilter(
-            0,
-            0,
-            len(ticket_df),
-            len(ticket_df.columns) - 1
-        )
-
-        ###################################################################
-        # DASHBOARD
-        ###################################################################
-
-        dashboard_ws = workbook.add_worksheet("Dashboard")
-
-        writer.sheets["Dashboard"] = dashboard_ws
-
-        row = 0
-
-        dashboard_ws.write(
-
-            row,
-
-            0,
-
-            "FENERGO EXECUTIVE DASHBOARD",
-
-            title
-
-        )
-
-        row += 2
-
-        dashboard_ws.write(row, 0, "Total Tickets")
-        dashboard_ws.write(row, 1, dashboard["Total Tickets"])
-
-        row += 1
-
-        dashboard_ws.write(row, 0, "Total Users")
-        dashboard_ws.write(row, 1, dashboard["Total Users"])
-
-        row += 1
-
-        dashboard_ws.write(row, 0, "Total Regions")
-        dashboard_ws.write(row, 1, dashboard["Total Regions"])
-
-        row += 1
-
-        dashboard_ws.write(row, 0, "Total Champions")
-        dashboard_ws.write(row, 1, dashboard["Total Champions"])
-
-        row += 3
-
-        ###################################################################
-        # ISSUE SUMMARY
-        ###################################################################
-
-        dashboard_ws.write(row, 0, "Top Issue Categories", title)
-
-        row += 1
-
-        dashboard["issue_summary"].to_excel(
-
-            writer,
-
-            sheet_name="Dashboard",
-
-            startrow=row,
-
-            startcol=0,
-
-            index=False
-
-        )
-
-        row += len(dashboard["issue_summary"]) + 4
-
-        ###################################################################
-        # REGION SUMMARY
-        ###################################################################
-
-        dashboard_ws.write(row, 0, "Top Regions", title)
-
-        row += 1
-
-        dashboard["region_summary"].to_excel(
-
-            writer,
-
-            sheet_name="Dashboard",
-
-            startrow=row,
-
-            startcol=0,
-
-            index=False
-
-        )
-
-        row += len(dashboard["region_summary"]) + 4
-
-        ###################################################################
-        # USER SUMMARY
-        ###################################################################
-
-        dashboard_ws.write(row, 0, "Top Users", title)
-
-        row += 1
-
-        dashboard["user_summary"].to_excel(
-
-            writer,
-
-            sheet_name="Dashboard",
-
-            startrow=row,
-
-            startcol=0,
-
-            index=False
-
-        )
-
-        ###################################################################
-        # CHART
-        ###################################################################
-
-        chart = workbook.add_chart({
-
-            "type": "column"
-
-        })
-
-        chart.add_series({
-
-            "categories": [
-
-                "Dashboard",
-
-                8,
-
-                0,
-
-                8 + len(dashboard["issue_summary"]) - 1,
-
-                0
-
-            ],
-
-            "values": [
-
-                "Dashboard",
-
-                8,
-
-                1,
-
-                8 + len(dashboard["issue_summary"]) - 1,
-
-                1
-
-            ]
-
-        })
-
-        chart.set_title({
-
-            "name": "Issue Distribution"
-
-        })
-
-        dashboard_ws.insert_chart(
-
-            "H2",
-
-            chart
-
-        )
-
-    logger.info("Excel Export Completed")
-
-
-##########################################################################
-# MAIN
-##########################################################################
-
-def main():
-
-    logger.info("=" * 70)
-
-    logger.info("FENERGO AI ANALYSIS STARTED")
-
-    logger.info("=" * 70)
-
-    df, mapping = load_excel(INPUT_FILE)
-
-    tickets = prepare_tickets(df, mapping)
-
-    analysis_df = analyze_all_tickets(tickets)
-
-    analysis_df.sort_values(
-
-        "RITM Number",
-
-        inplace=True
-
-    )
-
-    dashboard = generate_dashboard(
-
-        analysis_df
-
-    )
-
-    export_excel(
-
-        analysis_df,
-
-        dashboard
-
-    )
-
-    logger.info("=" * 70)
-
-    logger.info("PROCESS COMPLETED")
-
-    logger.info("=" * 70)
-
-    logger.info(f"Output Saved : {OUTPUT_FILE}")
-
-
-if __name__ == "__main__":
-
-    main()
+def normalize_category(category, issue_summary=""):
+    """
+    Normalize AI-generated categories into approved parent categories
+    while preserving the specific issue topic.
+    """
+
+    category = str(category).strip()
+    issue_summary = str(issue_summary).strip()
+
+    text = f"{category} {issue_summary}".lower()
+
+    # Application-related issues
+    application_keywords = [
+        "application issue",
+        "application error",
+        "application failure",
+        "application problem",
+        "application performance",
+        "application workflow",
+        "system error",
+        "system failure",
+        "application not working"
+    ]
+
+    if any(keyword in text for keyword in application_keywords):
+        return "Application Issue"
+
+    # Functional support
+    functional_keywords = [
+        "workflow exception",
+        "workflow issue",
+        "workflow problem",
+        "decision making",
+        "decision-making",
+        "business process",
+        "functional issue",
+        "functional problem",
+        "process issue"
+    ]
+
+    if any(keyword in text for keyword in functional_keywords):
+        return "Functional Support"
+
+    # Technical support
+    technical_keywords = [
+        "performance issue",
+        "performance problem",
+        "slow",
+        "timeout",
+        "technical issue",
+        "technical problem",
+        "integration issue",
+        "interface issue",
+        "api issue",
+        "connectivity issue"
+    ]
+
+    if any(keyword in text for keyword in technical_keywords):
+        return "Technical Support"
+
+    # Preserve already-approved categories
+    approved_categories = {
+        "functional support",
+        "technical support",
+        "application issue"
+    }
+
+    if category.lower() in approved_categories:
+        return category.title()
+
+    # Default
+    return category
