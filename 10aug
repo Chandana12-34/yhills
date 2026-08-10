@@ -1,0 +1,131 @@
+def normalize_category(category, issue_summary="", issue_type=""):
+    """
+    Classify tickets according to the Issue Type and approved categories.
+    """
+
+    category = str(category).strip()
+    issue_summary = str(issue_summary).strip().lower()
+    issue_type = str(issue_type).strip().lower()
+
+    # ============================================================
+    # APPLICATION ISSUE
+    # ============================================================
+    if issue_type == "application issue":
+
+        if any(keyword in issue_summary for keyword in [
+            "performance",
+            "slow",
+            "slowly",
+            "slowness",
+            "timeout"
+        ]):
+            return "Performance and Slowness"
+
+        if any(keyword in issue_summary for keyword in [
+            "decision",
+            "decision making"
+        ]):
+            return "Decision Making (Issue faced at Decision Stage)"
+
+        if any(keyword in issue_summary for keyword in [
+            "data flow",
+            "dataflow",
+            "internal flow",
+            "between tasks",
+            "between stages"
+        ]):
+            return "Data Flow Internal (Internal flow of data between tasks and stages)"
+
+        if any(keyword in issue_summary for keyword in [
+            "front office",
+            "initiation",
+            "validation",
+            "business power"
+        ]):
+            return "Front Office Initiation/Validation (Business Power)"
+
+        if any(keyword in issue_summary for keyword in [
+            "hierarchy"
+        ]):
+            return "Hierarchy (Issue at creation or display of Hierarchy)"
+
+        if any(keyword in issue_summary for keyword in [
+            "kyc",
+            "escalation form"
+        ]):
+            return "KYC and Escalation Form"
+
+        if any(keyword in issue_summary for keyword in [
+            "screening"
+        ]):
+            return "Screening Issue"
+
+        if any(keyword in issue_summary for keyword in [
+            "user interface",
+            "ui issue",
+            "ui",
+            "wrong data in ui",
+            "missing data in ui"
+        ]):
+            return "User Interface (Issue with wrong or missing data in UI)"
+
+        if any(keyword in issue_summary for keyword in [
+            "workflow exception",
+            "workflow issue",
+            "workflow problem"
+        ]):
+            return "Workflow Exception"
+
+        return "Other"
+
+    # ============================================================
+    # APPLICATION SUPPORT
+    # ============================================================
+    if issue_type == "application support":
+
+        approved_support_categories = {
+            "functional support": "Functional Support",
+            "technical support": "Technical Support"
+        }
+
+        if category.lower() in approved_support_categories:
+            return approved_support_categories[category.lower()]
+
+        # Try to classify from issue summary if Category is missing
+        if any(keyword in issue_summary for keyword in [
+            "functional",
+            "business process",
+            "business rule",
+            "decision making",
+            "workflow",
+            "functional issue",
+            "functional problem"
+        ]):
+            return "Functional Support"
+
+        if any(keyword in issue_summary for keyword in [
+            "technical",
+            "performance",
+            "slow",
+            "timeout",
+            "integration",
+            "interface",
+            "api",
+            "connectivity"
+        ]):
+            return "Technical Support"
+
+        return "Other"
+
+    # ============================================================
+    # PRESERVE ALREADY APPROVED CATEGORIES
+    # ============================================================
+    approved_categories = {
+        "functional support": "Functional Support",
+        "technical support": "Technical Support"
+    }
+
+    if category.lower() in approved_categories:
+        return approved_categories[category.lower()]
+
+    return category
