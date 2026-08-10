@@ -1,46 +1,32 @@
-# ---------------------------------------------------------
-# User issue analysis
-# ---------------------------------------------------------
-user_issue_summary = (
-    df[
-        df["Requested For"].notna()
-        & df["Category"].notna()
-        & df["Sub Category"].notna()
-        & (df["Requested For"].astype(str).str.strip() != "")
-        & (df["Category"].astype(str).str.strip() != "")
-        & (df["Sub Category"].astype(str).str.strip() != "")
-    ]
-    .groupby(["Requested For", "Category", "Sub Category"])
-    .size()
-    .reset_index(name="Count")
-    .sort_values(
-        ["Count", "Requested For"],
-        ascending=[False, True]
+# ----- User Issue Analysis -----
+    dash_ws.write(row, 0, "User Issue Analysis", title_fmt)
+    row += 1
+
+    user_issue_summary = dashboard["user_issue_summary"].head(20)
+
+    user_issue_summary.to_excel(
+        writer,
+        sheet_name="Dashboard",
+        startrow=row,
+        startcol=0,
+        index=False
     )
-)
 
-dashboard["user_issue_summary"] = user_issue_summary
+    row += len(user_issue_summary) + 4
 
 
-# ---------------------------------------------------------
-# Champion issue analysis
-# ---------------------------------------------------------
-champion_issue_summary = (
-    df[
-        df["Champion"].notna()
-        & df["Category"].notna()
-        & df["Sub Category"].notna()
-        & (df["Champion"].astype(str).str.strip() != "")
-        & (df["Category"].astype(str).str.strip() != "")
-        & (df["Sub Category"].astype(str).str.strip() != "")
-    ]
-    .groupby(["Champion", "Category", "Sub Category"])
-    .size()
-    .reset_index(name="Count")
-    .sort_values(
-        ["Count", "Champion"],
-        ascending=[False, True]
+    # ----- Champion Issue Analysis -----
+    dash_ws.write(row, 0, "Champion Issue Analysis", title_fmt)
+    row += 1
+
+    champion_issue_summary = dashboard["champion_issue_summary"].head(20)
+
+    champion_issue_summary.to_excel(
+        writer,
+        sheet_name="Dashboard",
+        startrow=row,
+        startcol=0,
+        index=False
     )
-)
 
-dashboard["champion_issue_summary"] = champion_issue_summary
+    row += len(champion_issue_summary) + 4
