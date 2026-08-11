@@ -1,0 +1,66 @@
+def analyze_ticket(ticket):
+    try:
+        ai = cached_analysis(ticket)
+
+        # Normalize Category
+        normalized_category = normalize_category(
+            ai.get("category", ""),
+            ai.get("issue_summary", ""),
+            ai.get("issue_type", "")
+        )
+
+        # Normalize Process Improvement
+        process_improvement = clean_process(
+            ai.get("process_improvement", "")
+        )
+
+        return {
+            "RITM Number": ticket["ritm"],
+            "Issue Summary": ai.get("issue_summary", ""),
+            "Issue Type": ai.get("issue_type", ""),
+            "Category": normalized_category,
+            "Sub Category": ai.get("subcategory", ""),
+            "Root Cause": ai.get("root_cause", ""),
+            "Resolution": ai.get("resolution", ""),
+            "Training Needed": ai.get("training_needed", ""),
+            "Training Topic": ai.get("training_topic", ""),
+            "Automation Opportunity": ai.get("automation_opportunity", ""),
+            "Process Improvement": process_improvement,
+
+            "Priority": ticket["priority"],
+            "Assignment Group": ticket["assignment_group"],
+            "Department": ticket["department"],
+            "Client Region": ticket["region"],
+            "Requested For": ticket["requested_for"],
+            "Champion": ticket["champion"],
+            "Entity": ticket["entity"],
+            "Created": ticket["created"],
+            "Updated": ticket["updated"]
+        }
+
+    except Exception as exc:
+        logger.exception(exc)
+
+        return {
+            "RITM Number": ticket.get("ritm", ""),
+            "Issue Summary": "ERROR",
+            "Issue Type": "ERROR",
+            "Category": "ERROR",
+            "Sub Category": "ERROR",
+            "Root Cause": "ERROR",
+            "Resolution": "ERROR",
+            "Training Needed": "ERROR",
+            "Training Topic": "ERROR",
+            "Automation Opportunity": "ERROR",
+            "Process Improvement": "ERROR",
+
+            "Priority": ticket.get("priority", ""),
+            "Assignment Group": ticket.get("assignment_group", ""),
+            "Department": ticket.get("department", ""),
+            "Client Region": ticket.get("region", ""),
+            "Requested For": ticket.get("requested_for", ""),
+            "Champion": ticket.get("champion", ""),
+            "Entity": ticket.get("entity", ""),
+            "Created": ticket.get("created", ""),
+            "Updated": ticket.get("updated", "")
+        }
