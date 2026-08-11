@@ -1,0 +1,409 @@
+def normalize_category(category, issue_summary="", issue_type=""):
+    """
+    Normalize Category according to Issue Type.
+
+    Application Issue:
+        Category = approved application issue category.
+
+    Application Support:
+        Category = Functional Support / Technical Support.
+    """
+
+    category = str(category or "").strip()
+    issue_summary = str(issue_summary or "").strip().lower()
+    issue_type = str(issue_type or "").strip().lower()
+
+    # ============================================================
+    # APPROVED APPLICATION ISSUE CATEGORIES
+    # ============================================================
+
+    application_issue_categories = {
+        "performance and slowness":
+            "Performance and Slowness",
+
+        "decision making (issue faced at decision stage)":
+            "Decision Making (Issue faced at Decision Stage)",
+
+        "data flow internal (internal flow of data between tasks and stages)":
+            "Data Flow Internal (Internal flow of data between tasks and stages)",
+
+        "front office initiation/validation (business power)":
+            "Front Office Initiation/Validation (Business Power)",
+
+        "hierarchy (issue at creation or display of hierarchy)":
+            "Hierarchy (Issue at creation or display of Hierarchy)",
+
+        "kyc and escalation form":
+            "KYC and Escalation Form",
+
+        "screening issue":
+            "Screening Issue",
+
+        "user interface (issue with wrong or missing data in ui)":
+            "User Interface (Issue with wrong or missing data in UI)",
+
+        "workflow exception":
+            "Workflow Exception",
+
+        "other":
+            "Other",
+    }
+
+    # ============================================================
+    # APPLICATION ISSUE
+    # ============================================================
+
+    if issue_type == "application issue":
+
+        # Preserve an already approved category
+        normalized = category.lower()
+
+        if normalized in application_issue_categories:
+            return application_issue_categories[normalized]
+
+        # Infer category from Issue Summary
+
+        if any(k in issue_summary for k in [
+            "performance",
+            "slow",
+            "slowly",
+            "slowness",
+            "timeout",
+            "taking too long",
+            "takes too long"
+        ]):
+            return "Performance and Slowness"
+
+        if any(k in issue_summary for k in [
+            "decision",
+            "decision making",
+            "decision stage"
+        ]):
+            return "Decision Making (Issue faced at Decision Stage)"
+
+        if any(k in issue_summary for k in [
+            "data flow",
+            "dataflow",
+            "internal data flow",
+            "data flow internal",
+            "data not flowing",
+            "data flow between",
+            "between tasks",
+            "between stages"
+        ]):
+            return "Data Flow Internal (Internal flow of data between tasks and stages)"
+
+        if any(k in issue_summary for k in [
+            "front office",
+            "business power",
+            "initiation",
+            "validation"
+        ]):
+            return "Front Office Initiation/Validation (Business Power)"
+
+        if any(k in issue_summary for k in [
+            "hierarchy",
+            "hierarchy creation",
+            "hierarchy display"
+        ]):
+            return "Hierarchy (Issue at creation or display of Hierarchy)"
+
+        if any(k in issue_summary for k in [
+            "kyc",
+            "escalation form"
+        ]):
+            return "KYC and Escalation Form"
+
+        if any(k in issue_summary for k in [
+            "screening",
+            "screening issue"
+        ]):
+            return "Screening Issue"
+
+        if any(k in issue_summary for k in [
+            "user interface",
+            "ui issue",
+            "ui problem",
+            "wrong data in ui",
+            "missing data in ui",
+            "display issue",
+            "not visible",
+            "missing on screen"
+        ]):
+            return "User Interface (Issue with wrong or missing data in UI)"
+
+        if any(k in issue_summary for k in [
+            "workflow exception",
+            "workflow error",
+            "workflow issue",
+            "workflow problem",
+            "workflow"
+        ]):
+            return "Workflow Exception"
+
+        return "Other"
+
+    # ============================================================
+    # APPLICATION SUPPORT
+    # ============================================================
+
+    if issue_type == "application support":
+
+        approved_support_categories = {
+            "functional support": "Functional Support",
+            "technical support": "Technical Support",
+        }
+
+        normalized = category.lower()
+
+        if normalized in approved_support_categories:
+            return approved_support_categories[normalized]
+
+        # Infer Functional Support
+        if any(k in issue_summary for k in [
+            "functional",
+            "business process",
+            "business rule",
+            "decision making",
+            "workflow",
+            "functional issue",
+            "functional problem"
+        ]):
+            return "Functional Support"
+
+        # Infer Technical Support
+        if any(k in issue_summary for k in [
+            "technical",
+            "integration",
+            "interface",
+            "api",
+            "connectivity",
+            "crds",
+            "upstream",
+            "downstream",
+            "performance",
+            "slow",
+            "timeout"
+        ]):
+            return "Technical Support"
+
+        # Default for Application Support
+        return "Functional Support"
+
+    # ============================================================
+    # FALLBACK
+    # ============================================================
+
+    return category if category else "Other"
+
+
+
+
+
+2 nd code ......... 
+
+def normalize_subcategory(category, subcategory="", issue_summary=""):
+    """
+    Normalize Sub Category according to the normalized parent Category.
+    """
+
+    category = str(category or "").strip()
+    subcategory = str(subcategory or "").strip()
+    issue_summary = str(issue_summary or "").strip().lower()
+
+    # ============================================================
+    # FUNCTIONAL SUPPORT SUB-CATEGORIES
+    # ============================================================
+
+    approved_functional_subcategories = {
+        "performance and slowness":
+            "Performance and Slowness",
+
+        "decision making (issue faced at decision stage)":
+            "Decision Making (Issue faced at Decision Stage)",
+
+        "data flow internal (internal flow of data between tasks and stages)":
+            "Data Flow Internal (Internal flow of data between tasks and stages)",
+
+        "front office initiation/validation (business power)":
+            "Front Office Initiation/Validation (Business Power)",
+
+        "hierarchy (issue at creation or display of hierarchy)":
+            "Hierarchy (Issue at creation or display of Hierarchy)",
+
+        "kyc and escalation form":
+            "KYC and Escalation Form",
+
+        "screening issue":
+            "Screening Issue",
+
+        "user interface (issue with wrong or missing data in ui)":
+            "User Interface (Issue with wrong or missing data in UI)",
+
+        "workflow exception":
+            "Workflow Exception",
+
+        "other":
+            "Other",
+    }
+
+    # ============================================================
+    # FUNCTIONAL SUPPORT
+    # ============================================================
+
+    if category.lower() == "functional support":
+
+        # Preserve an already approved sub-category
+        normalized_subcategory = subcategory.lower()
+
+        if normalized_subcategory in approved_functional_subcategories:
+            return approved_functional_subcategories[normalized_subcategory]
+
+        # Infer from Issue Summary
+
+        if any(k in issue_summary for k in [
+            "performance",
+            "slow",
+            "slowly",
+            "slowness",
+            "taking too long",
+            "takes too long",
+            "timeout"
+        ]):
+            return "Performance and Slowness"
+
+        if any(k in issue_summary for k in [
+            "decision making",
+            "decision stage",
+            "decision"
+        ]):
+            return "Decision Making (Issue faced at Decision Stage)"
+
+        if any(k in issue_summary for k in [
+            "data flow internal",
+            "internal data flow",
+            "data flow between",
+            "data not flowing",
+            "data flow",
+            "between tasks",
+            "between stages"
+        ]):
+            return "Data Flow Internal (Internal flow of data between tasks and stages)"
+
+        if any(k in issue_summary for k in [
+            "front office",
+            "business power",
+            "initiation",
+            "validation"
+        ]):
+            return "Front Office Initiation/Validation (Business Power)"
+
+        if any(k in issue_summary for k in [
+            "hierarchy",
+            "hierarchy creation",
+            "hierarchy display"
+        ]):
+            return "Hierarchy (Issue at creation or display of Hierarchy)"
+
+        if any(k in issue_summary for k in [
+            "kyc",
+            "escalation form"
+        ]):
+            return "KYC and Escalation Form"
+
+        if any(k in issue_summary for k in [
+            "screening",
+            "screening issue"
+        ]):
+            return "Screening Issue"
+
+        if any(k in issue_summary for k in [
+            "user interface",
+            "ui issue",
+            "ui problem",
+            "wrong data in ui",
+            "missing data in ui",
+            "display issue",
+            "not visible",
+            "missing on screen"
+        ]):
+            return "User Interface (Issue with wrong or missing data in UI)"
+
+        if any(k in issue_summary for k in [
+            "workflow exception",
+            "workflow error",
+            "workflow issue",
+            "workflow problem",
+            "workflow"
+        ]):
+            return "Workflow Exception"
+
+        return "Other"
+
+    # ============================================================
+    # TECHNICAL SUPPORT
+    # ============================================================
+
+    if category.lower() == "technical support":
+
+        if any(k in issue_summary for k in [
+            "upstream",
+            "downstream",
+            "crds",
+            "data synchronization",
+            "data synchronisation",
+            "synchronization",
+            "synchronisation"
+        ]):
+            return "Up & Downstream with CRDS"
+
+        # Preserve an existing Technical Support sub-category
+        if subcategory:
+            return subcategory
+
+        return "Other"
+
+    # ============================================================
+    # APPLICATION ISSUE
+    #
+    # For Application Issue, the dropdown itself represents
+    # the issue category. Therefore Category becomes the
+    # Sub Category equivalent and should be preserved.
+    # ============================================================
+
+    application_issue_categories = {
+        "performance and slowness":
+            "Performance and Slowness",
+
+        "decision making (issue faced at decision stage)":
+            "Decision Making (Issue faced at Decision Stage)",
+
+        "data flow internal (internal flow of data between tasks and stages)":
+            "Data Flow Internal (Internal flow of data between tasks and stages)",
+
+        "front office initiation/validation (business power)":
+            "Front Office Initiation/Validation (Business Power)",
+
+        "hierarchy (issue at creation or display of hierarchy)":
+            "Hierarchy (Issue at creation or display of Hierarchy)",
+
+        "kyc and escalation form":
+            "KYC and Escalation Form",
+
+        "screening issue":
+            "Screening Issue",
+
+        "user interface (issue with wrong or missing data in ui)":
+            "User Interface (Issue with wrong or missing data in UI)",
+
+        "workflow exception":
+            "Workflow Exception",
+
+        "other":
+            "Other",
+    }
+
+    if category.lower() in application_issue_categories:
+        return application_issue_categories[category.lower()]
+
+    return subcategory if subcategory else "Other"
