@@ -1,250 +1,52 @@
-def normalize_subcategory(category, subcategory="", issue_summary=""):
-    """
-    Derive the detailed Sub Category using the normalized parent Category
-    and the complete ticket text.
-    """
+# ------------------------------------------------------------
+# Issue category breakdown
+# ------------------------------------------------------------
 
-    category = str(category or "").strip()
-    subcategory = str(subcategory or "").strip()
-    issue_summary = str(issue_summary or "").strip().lower()
+# Make sure missing classification values are not dropped
+summary_df = df.copy()
 
-    # ============================================================
-    # APPLICATION ISSUE
-    # ============================================================
+summary_df["Issue Type"] = (
+    summary_df["Issue Type"]
+    .fillna("Other")
+    .astype(str)
+    .str.strip()
+    .replace("", "Other")
+)
 
-    if category.lower() == "application issue":
+summary_df["Category"] = (
+    summary_df["Category"]
+    .fillna("Other")
+    .astype(str)
+    .str.strip()
+    .replace("", "Other")
+)
 
-        # Preserve a valid existing sub-category
-        valid_application_subcategories = {
-            "performance and slowness":
-                "Performance and Slowness",
+summary_df["Sub Category"] = (
+    summary_df["Sub Category"]
+    .fillna("Other")
+    .astype(str)
+    .str.strip()
+    .replace("", "Other")
+)
 
-            "decision making (issue faced at decision stage)":
-                "Decision Making (Issue faced at Decision Stage)",
+# Create summary WITHOUT dropping tickets
+issue_summary = (
+    summary_df
+    .groupby(
+        ["Issue Type", "Category", "Sub Category"],
+        dropna=False
+    )
+    .size()
+    .reset_index(name="Count")
+    .sort_values(
+        ["Issue Type", "Category", "Count", "Sub Category"],
+        ascending=[True, True, False, True]
+    )
+)
 
-            "data flow internal (internal flow of data between tasks and stages)":
-                "Data Flow Internal (Internal flow of data between tasks and stages)",
+# Percentage must be based on ALL processed tickets
+issue_summary["Percentage"] = (
+    issue_summary["Count"] / len(summary_df) * 100
+).round(2)
 
-            "front office initiation/validation (business power)":
-                "Front Office Initiation/Validation (Business Power)",
-
-            "hierarchy (issue at creation or display of hierarchy)":
-                "Hierarchy (Issue at creation or display of Hierarchy)",
-
-            "kyc and escalation form":
-                "KYC and Escalation Form",
-
-            "screening issue":
-                "Screening Issue",
-
-            "user interface (issue with wrong or missing data in ui)":
-                "User Interface (Issue with wrong or missing data in UI)",
-
-            "workflow exception":
-                "Workflow Exception",
-
-            "other":
-                "Other",
-        }
-
-        normalized_subcategory = subcategory.lower()
-
-        if normalized_subcategory in valid_application_subcategories:
-            if normalized_subcategory != "other":
-                return valid_application_subcategories[normalized_subcategory]
-
-        # --------------------------------------------------------
-        # Infer Sub Category from complete ticket text
-        # --------------------------------------------------------
-
-        if any(k in issue_summary for k in [
-            "performance",
-            "slow",
-            "slowly",
-            "slowness",
-            "taking too long",
-            "takes too long",
-            "timeout"
-        ]):
-            return "Performance and Slowness"
-
-        if any(k in issue_summary for k in [
-            "decision making",
-            "decision stage",
-            "decision step",
-            "rm decision",
-            "decision"
-        ]):
-            return "Decision Making (Issue faced at Decision Stage)"
-
-        if any(k in issue_summary for k in [
-            "data flow",
-            "dataflow",
-            "internal data flow",
-            "data not flowing",
-            "data flow between",
-            "between tasks",
-            "between stages"
-        ]):
-            return "Data Flow Internal (Internal flow of data between tasks and stages)"
-
-        if any(k in issue_summary for k in [
-            "front office",
-            "business power",
-            "initiation",
-            "validation"
-        ]):
-            return "Front Office Initiation/Validation (Business Power)"
-
-        if any(k in issue_summary for k in [
-            "hierarchy",
-            "hierarchy creation",
-            "hierarchy display"
-        ]):
-            return "Hierarchy (Issue at creation or display of Hierarchy)"
-
-        if any(k in issue_summary for k in [
-            "kyc",
-            "escalation form"
-        ]):
-            return "KYC and Escalation Form"
-
-        if any(k in issue_summary for k in [
-            "screening",
-            "screening issue"
-        ]):
-            return "Screening Issue"
-
-        if any(k in issue_summary for k in [
-            "user interface",
-            "ui issue",
-            "ui problem",
-            "wrong data in ui",
-            "missing data in ui",
-            "display issue",
-            "not visible",
-            "missing on screen"
-        ]):
-            return "User Interface (Issue with wrong or missing data in UI)"
-
-        if any(k in issue_summary for k in [
-            "workflow exception",
-            "workflow error",
-            "workflow issue",
-            "workflow problem",
-            "workflow",
-            "unable to transition",
-            "unable to move to next stage",
-            "stuck at",
-            "cannot move to next stage",
-            "failed to move to next stage"
-        ]):
-            return "Workflow Exception"
-
-        return "Other"
-
-    # ============================================================
-    # FUNCTIONAL SUPPORT
-    # ============================================================
-
-    if category.lower() == "functional support":
-
-        # Existing valid Functional Support sub-category
-        valid_functional_subcategories = {
-            "kyc and escalation form":
-                "KYC and Escalation Form",
-
-            "performance and slowness":
-                "Performance and Slowness",
-
-            "decision making (issue faced at decision stage)":
-                "Decision Making (Issue faced at Decision Stage)",
-
-            "data flow internal (internal flow of data between tasks and stages)":
-                "Data Flow Internal (Internal flow of data between tasks and stages)",
-
-            "front office initiation/validation (business power)":
-                "Front Office Initiation/Validation (Business Power)",
-
-            "hierarchy (issue at creation or display of hierarchy)":
-                "Hierarchy (Issue at creation or display of Hierarchy)",
-
-            "screening issue":
-                "Screening Issue",
-
-            "user interface (issue with wrong or missing data in ui)":
-                "User Interface (Issue with wrong or missing data in UI)",
-
-            "workflow exception":
-                "Workflow Exception",
-        }
-
-        normalized_subcategory = subcategory.lower()
-
-        if normalized_subcategory in valid_functional_subcategories:
-            return valid_functional_subcategories[normalized_subcategory]
-
-        if any(k in issue_summary for k in [
-            "kyc",
-            "escalation form"
-        ]):
-            return "KYC and Escalation Form"
-
-        if any(k in issue_summary for k in [
-            "workflow",
-            "business process",
-            "business rule",
-            "functional issue",
-            "functional problem"
-        ]):
-            return "Workflow Exception"
-
-        if any(k in issue_summary for k in [
-            "decision",
-            "decision making",
-            "decision stage"
-        ]):
-            return "Decision Making (Issue faced at Decision Stage)"
-
-        if any(k in issue_summary for k in [
-            "performance",
-            "slow",
-            "slowness",
-            "timeout"
-        ]):
-            return "Performance and Slowness"
-
-        return "Other"
-
-    # ============================================================
-    # TECHNICAL SUPPORT
-    # ============================================================
-
-    if category.lower() == "technical support":
-
-        if any(k in issue_summary for k in [
-            "upstream",
-            "downstream",
-            "crds",
-            "data synchronization",
-            "data synchronisation",
-            "synchronization",
-            "synchronisation",
-            "not migrated",
-            "migration"
-        ]):
-            return "Up & Downstream with CRDS"
-
-        if subcategory and subcategory.lower() != "other":
-            return subcategory
-
-        return "Other"
-
-    # ============================================================
-    # FALLBACK
-    # ============================================================
-
-    if subcategory and subcategory.lower() not in {"other", "nan", "none"}:
-        return subcategory
-
-    return "Other"
+dashboard["issue_summary"] = issue_summary
