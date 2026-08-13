@@ -1,168 +1,60 @@
-def normalize_category(category, issue_summary="", issue_type=""):
-    """
-    Normalize the parent Category.
-
-    Final allowed Categories:
-        - Application Issue
-        - Functional Support
-        - Technical Support
-
-    The detailed issue classification belongs in Sub Category.
-    """
-
-    category = str(category or "").strip()
-    issue_summary = str(issue_summary or "").strip().lower()
-    issue_type = str(issue_type or "").strip().lower()
-
-    # ============================================================
-    # APPLICATION ISSUE
-    # ============================================================
-
-    if issue_type == "application issue":
-
-        # If the incoming category is already an application
-        # issue category, the parent category must still be
-        # "Application Issue".
-        return "Application Issue"
-
-    # ============================================================
-    # APPLICATION SUPPORT
-    # ============================================================
-
-    if issue_type == "application support":
-
-        # Preserve an already normalized parent category
-        if category.lower() in [
-            "functional support",
-            "technical support"
-        ]:
-            return category.title()
-
-        # --------------------------------------------------------
-        # FUNCTIONAL SUPPORT
-        # --------------------------------------------------------
-
-        if any(k in issue_summary for k in [
-            "kyc",
-            "escalation form",
-            "functional",
-            "business process",
-            "business rule",
-            "workflow",
-            "functional issue",
-            "functional problem",
-            "decision making",
-            "decision stage"
-        ]):
-            return "Functional Support"
-
-        # --------------------------------------------------------
-        # TECHNICAL SUPPORT
-        # --------------------------------------------------------
-
-        if any(k in issue_summary for k in [
-            "technical",
-            "integration",
-            "interface",
-            "api",
-            "connectivity",
-            "crds",
-            "upstream",
-            "downstream",
-            "data synchronization",
-            "data synchronisation",
-            "synchronization",
-            "synchronisation"
-        ]):
-            return "Technical Support"
-
-        # Default
-        return "Functional Support"
-
-    # ============================================================
-    # ALREADY NORMALIZED CATEGORY
-    # ============================================================
-
-    if category.lower() == "application issue":
-        return "Application Issue"
-
-    if category.lower() == "functional support":
-        return "Functional Support"
-
-    if category.lower() == "technical support":
-        return "Technical Support"
-
-    # ============================================================
-    # FALLBACK
-    # ============================================================
-
-    return category if category else "Other"
-
-
 def normalize_subcategory(category, subcategory="", issue_summary=""):
     """
-    Normalize Sub Category according to the normalized parent Category.
-
-    Parent Categories:
-        Application Issue
-        Functional Support
-        Technical Support
+    Derive the detailed Sub Category using the normalized parent Category
+    and the complete ticket text.
     """
 
     category = str(category or "").strip()
     subcategory = str(subcategory or "").strip()
     issue_summary = str(issue_summary or "").strip().lower()
 
-    category_lower = category.lower()
-    subcategory_lower = subcategory.lower()
-
     # ============================================================
-    # APPLICATION ISSUE SUB-CATEGORIES
+    # APPLICATION ISSUE
     # ============================================================
 
-    application_issue_subcategories = {
-        "performance and slowness":
-            "Performance and Slowness",
+    if category.lower() == "application issue":
 
-        "decision making (issue faced at decision stage)":
-            "Decision Making (Issue faced at Decision Stage)",
+        # Preserve a valid existing sub-category
+        valid_application_subcategories = {
+            "performance and slowness":
+                "Performance and Slowness",
 
-        "data flow internal (internal flow of data between tasks and stages)":
-            "Data Flow Internal (Internal flow of data between tasks and stages)",
+            "decision making (issue faced at decision stage)":
+                "Decision Making (Issue faced at Decision Stage)",
 
-        "front office initiation/validation (business power)":
-            "Front Office Initiation/Validation (Business Power)",
+            "data flow internal (internal flow of data between tasks and stages)":
+                "Data Flow Internal (Internal flow of data between tasks and stages)",
 
-        "hierarchy (issue at creation or display of hierarchy)":
-            "Hierarchy (Issue at creation or display of Hierarchy)",
+            "front office initiation/validation (business power)":
+                "Front Office Initiation/Validation (Business Power)",
 
-        "kyc and escalation form":
-            "KYC and Escalation Form",
+            "hierarchy (issue at creation or display of hierarchy)":
+                "Hierarchy (Issue at creation or display of Hierarchy)",
 
-        "screening issue":
-            "Screening Issue",
+            "kyc and escalation form":
+                "KYC and Escalation Form",
 
-        "user interface (issue with wrong or missing data in ui)":
-            "User Interface (Issue with wrong or missing data in UI)",
+            "screening issue":
+                "Screening Issue",
 
-        "workflow exception":
-            "Workflow Exception",
+            "user interface (issue with wrong or missing data in ui)":
+                "User Interface (Issue with wrong or missing data in UI)",
 
-        "other":
-            "Other",
-    }
+            "workflow exception":
+                "Workflow Exception",
 
-    if category_lower == "application issue":
+            "other":
+                "Other",
+        }
+
+        normalized_subcategory = subcategory.lower()
+
+        if normalized_subcategory in valid_application_subcategories:
+            if normalized_subcategory != "other":
+                return valid_application_subcategories[normalized_subcategory]
 
         # --------------------------------------------------------
-        # Preserve an existing approved sub-category
-        # --------------------------------------------------------
-
-        if subcategory_lower in application_issue_subcategories:
-            return application_issue_subcategories[subcategory_lower]
-
-        # --------------------------------------------------------
-        # Infer from Issue Summary
+        # Infer Sub Category from complete ticket text
         # --------------------------------------------------------
 
         if any(k in issue_summary for k in [
@@ -170,15 +62,17 @@ def normalize_subcategory(category, subcategory="", issue_summary=""):
             "slow",
             "slowly",
             "slowness",
-            "timeout",
             "taking too long",
-            "takes too long"
+            "takes too long",
+            "timeout"
         ]):
             return "Performance and Slowness"
 
         if any(k in issue_summary for k in [
             "decision making",
             "decision stage",
+            "decision step",
+            "rm decision",
             "decision"
         ]):
             return "Decision Making (Issue faced at Decision Stage)"
@@ -187,7 +81,6 @@ def normalize_subcategory(category, subcategory="", issue_summary=""):
             "data flow",
             "dataflow",
             "internal data flow",
-            "data flow internal",
             "data not flowing",
             "data flow between",
             "between tasks",
@@ -239,7 +132,12 @@ def normalize_subcategory(category, subcategory="", issue_summary=""):
             "workflow error",
             "workflow issue",
             "workflow problem",
-            "workflow"
+            "workflow",
+            "unable to transition",
+            "unable to move to next stage",
+            "stuck at",
+            "cannot move to next stage",
+            "failed to move to next stage"
         ]):
             return "Workflow Exception"
 
@@ -249,45 +147,72 @@ def normalize_subcategory(category, subcategory="", issue_summary=""):
     # FUNCTIONAL SUPPORT
     # ============================================================
 
-    if category_lower == "functional support":
+    if category.lower() == "functional support":
 
-        # --------------------------------------------------------
-        # Preserve approved Functional Support sub-category
-        # --------------------------------------------------------
-
-        functional_subcategories = {
+        # Existing valid Functional Support sub-category
+        valid_functional_subcategories = {
             "kyc and escalation form":
                 "KYC and Escalation Form",
 
+            "performance and slowness":
+                "Performance and Slowness",
+
+            "decision making (issue faced at decision stage)":
+                "Decision Making (Issue faced at Decision Stage)",
+
+            "data flow internal (internal flow of data between tasks and stages)":
+                "Data Flow Internal (Internal flow of data between tasks and stages)",
+
+            "front office initiation/validation (business power)":
+                "Front Office Initiation/Validation (Business Power)",
+
+            "hierarchy (issue at creation or display of hierarchy)":
+                "Hierarchy (Issue at creation or display of Hierarchy)",
+
+            "screening issue":
+                "Screening Issue",
+
+            "user interface (issue with wrong or missing data in ui)":
+                "User Interface (Issue with wrong or missing data in UI)",
+
             "workflow exception":
                 "Workflow Exception",
-
-            "other":
-                "Other",
         }
 
-        if subcategory_lower in functional_subcategories:
-            return functional_subcategories[subcategory_lower]
+        normalized_subcategory = subcategory.lower()
 
-        # --------------------------------------------------------
-        # Infer from Issue Summary / Description
-        # --------------------------------------------------------
+        if normalized_subcategory in valid_functional_subcategories:
+            return valid_functional_subcategories[normalized_subcategory]
 
         if any(k in issue_summary for k in [
             "kyc",
-            "escalation form",
-            "escalation"
+            "escalation form"
         ]):
             return "KYC and Escalation Form"
 
         if any(k in issue_summary for k in [
-            "workflow exception",
-            "workflow error",
-            "workflow issue",
-            "workflow problem",
-            "workflow"
+            "workflow",
+            "business process",
+            "business rule",
+            "functional issue",
+            "functional problem"
         ]):
             return "Workflow Exception"
+
+        if any(k in issue_summary for k in [
+            "decision",
+            "decision making",
+            "decision stage"
+        ]):
+            return "Decision Making (Issue faced at Decision Stage)"
+
+        if any(k in issue_summary for k in [
+            "performance",
+            "slow",
+            "slowness",
+            "timeout"
+        ]):
+            return "Performance and Slowness"
 
         return "Other"
 
@@ -295,18 +220,7 @@ def normalize_subcategory(category, subcategory="", issue_summary=""):
     # TECHNICAL SUPPORT
     # ============================================================
 
-    if category_lower == "technical support":
-
-        # --------------------------------------------------------
-        # Approved Technical Support sub-category
-        # --------------------------------------------------------
-
-        if subcategory_lower == "up & downstream with crds":
-            return "Up & Downstream with CRDS"
-
-        # --------------------------------------------------------
-        # Infer from Issue Summary / Description
-        # --------------------------------------------------------
+    if category.lower() == "technical support":
 
         if any(k in issue_summary for k in [
             "upstream",
@@ -315,9 +229,14 @@ def normalize_subcategory(category, subcategory="", issue_summary=""):
             "data synchronization",
             "data synchronisation",
             "synchronization",
-            "synchronisation"
+            "synchronisation",
+            "not migrated",
+            "migration"
         ]):
             return "Up & Downstream with CRDS"
+
+        if subcategory and subcategory.lower() != "other":
+            return subcategory
 
         return "Other"
 
@@ -325,4 +244,7 @@ def normalize_subcategory(category, subcategory="", issue_summary=""):
     # FALLBACK
     # ============================================================
 
-    return subcategory if subcategory else "Other"
+    if subcategory and subcategory.lower() not in {"other", "nan", "none"}:
+        return subcategory
+
+    return "Other"
