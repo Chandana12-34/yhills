@@ -1,23 +1,38 @@
-issue_type_df = df.copy()
+CLASSIFICATION HIERARCHY RULES:
 
-issue_type_df["Issue Type"] = (
-    issue_type_df["Issue Type"]
-    .fillna("Other")
-    .astype(str)
-    .str.strip()
-    .replace("", "Other")
-)
+The classification follows this hierarchy:
 
-issue_type_summary = (
-    issue_type_df
-    .groupby("Issue Type", dropna=False)
-    .size()
-    .reset_index(name="Count")
-    .sort_values("Count", ascending=False)
-)
+Issue Type → Category → Sub Category
 
-issue_type_summary["Percentage"] = (
-    issue_type_summary["Count"] / len(issue_type_df) * 100
-).round(2)
+Use the taxonomy according to the following rules:
 
-dashboard["issue_type_summary"] = issue_type_summary
+1. If Issue Type is "Application Support":
+   - Category MUST be either "Functional Support" or "Technical Support".
+   - If Category is "Functional Support", select the appropriate Sub Category from the Functional Support taxonomy.
+   - If Category is "Technical Support", select the appropriate Sub Category from the Technical Support taxonomy.
+
+2. If Issue Type is "Application Issue":
+   - Select the appropriate Category from the Application Issue Categories.
+   - The selected Category is also the applicable Sub Category for Application Issue tickets unless a more specific sub-category is explicitly defined in the taxonomy.
+   - Examples include:
+     "Workflow Exception"
+     "KYC Escalation Form"
+     "Screening Issue"
+     "Performance and Slowness"
+     "User Interface"
+
+3. Do NOT independently choose Category and Sub Category.
+
+4. Category and Sub Category must belong to the selected Issue Type.
+
+5. Never return "Other" for both Category and Sub Category when the ticket contains enough information to select a specific classification.
+
+6. "Other" should only be used when the ticket genuinely cannot be mapped to any specific allowed classification.
+
+7. Do not invent, rename, or create classification values.
+
+8. Prefer the most specific classification supported by the ticket details.
+
+9. Use the ticket's Short Description, Description and Comments together when determining the classification.
+
+10. The classification must represent the actual issue described in the ticket, not merely keywords appearing in the text.
