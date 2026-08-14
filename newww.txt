@@ -1,0 +1,107 @@
+def main():
+
+    print()
+    print("=" * 70)
+    print("RITM TWO-ITERATION ANALYSIS")
+    print("=" * 70)
+
+    # ========================================================
+    # STEP 1 - READ ORIGINAL INPUT
+    # ========================================================
+
+    print()
+    print("Reading input Excel...")
+
+    df = pd.read_excel(
+        INPUT_FILE,
+        engine="openpyxl"
+    )
+
+    print(f"Total records: {len(df)}")
+
+    # ========================================================
+    # STEP 2 - VALIDATE INPUT
+    # ========================================================
+
+    validate_input_columns(df)
+
+    # ========================================================
+    # STEP 3 - ITERATION 1
+    # ========================================================
+
+    print()
+    print("Starting Iteration 1...")
+
+    iteration_1_df = run_iteration_1(df)
+
+    # ========================================================
+    # STEP 4 - SAVE ITERATION 1
+    # ========================================================
+
+    print()
+    print("Saving Iteration 1 output...")
+
+    format_excel(
+        iteration_1_df,
+        ITERATION_1_FILE,
+        "RITM Analysis"
+    )
+
+    print(
+        f"Iteration 1 saved to: {ITERATION_1_FILE}"
+    )
+
+    # ========================================================
+    # STEP 5 - ITERATION 2A
+    # GENERATE HIGH-LEVEL CATEGORIES
+    # ========================================================
+
+    print()
+    print("Generating high-level categories...")
+
+    high_level_categories = generate_high_level_categories(
+        iteration_1_df
+    )
+
+    print()
+    print("High-level categories generated:")
+    print(high_level_categories)
+
+    # ========================================================
+    # STEP 6 - ITERATION 2B
+    # ASSIGN EACH RITM TO HIGH-LEVEL CATEGORY
+    # ========================================================
+
+    print()
+    print("Starting Iteration 2...")
+
+    final_df = run_iteration_2(
+        iteration_1_df,
+        high_level_categories
+    )
+
+    # ========================================================
+    # STEP 7 - SAVE FINAL OUTPUT
+    # ========================================================
+
+    print()
+    print("Saving final output...")
+
+    format_excel(
+        final_df,
+        FINAL_OUTPUT_FILE,
+        "Final Analysis"
+    )
+
+    # ========================================================
+    # COMPLETED
+    # ========================================================
+
+    print()
+    print("=" * 70)
+    print("PROCESS COMPLETED")
+    print("=" * 70)
+
+    print(f"Original records: {len(df)}")
+    print(f"Iteration 1 output: {ITERATION_1_FILE}")
+    print(f"Final output: {FINAL_OUTPUT_FILE}")
