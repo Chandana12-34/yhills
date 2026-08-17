@@ -1,58 +1,47 @@
 # ============================================================
-# FINAL CLASSIFICATION HIERARCHY ENFORCEMENT
+# FINAL TAXONOMY VALIDATION
 # ============================================================
 
-issue_type_key = " ".join(issue_type.split()).lower()
+def enforce_taxonomy(row):
+    issue_type = " ".join(
+        str(row.get("Issue Type", "") or "").split()
+    ).strip().lower()
 
-category_key = " ".join(normalized_category.split()).lower()
-subcategory_key = " ".join(normalized_subcategory.split()).lower()
+    category = " ".join(
+        str(row.get("Category", "") or "").split()
+    ).strip()
 
-# ------------------------------------------------------------
-# Application Support
-# Required:
-# Issue Type  = Application Support
-# Category    = Application Support
-# Sub Category = Functional Support / Technical Support
-# ------------------------------------------------------------
-if issue_type_key == "application support":
+    subcategory = " ".join(
+        str(row.get("Sub Category", "") or "").split()
+    ).strip()
 
-    normalized_category = "Application Support"
+    category_key = category.lower()
+    subcategory_key = subcategory.lower()
 
-    # Handle correct LLM output
-    if subcategory_key == "functional support":
-        normalized_subcategory = "Functional Support"
+    # Application Support
+    if issue_type == "application support":
 
-    elif subcategory_key == "technical support":
-        normalized_subcategory = "Technical Support"
+        if category_key == "functional support":
+            category = "Application Support"
+            subcategory = "Functional Support"
 
-    # Handle reversed LLM output:
-    # Functional Support -> Application Support
-    elif (
-        category_key == "functional support"
-        and subcategory_key == "application support"
-    ):
-        normalized_category = "Application Support"
-        normalized_subcategory = "Functional Support"
+        elif category_key == "technical support":
+            category = "Application Support"
+            subcategory = "Technical Support"
 
-    # Handle reversed LLM output:
-    # Technical Support -> Application Support
-    elif (
-        category_key == "technical support"
-        and subcategory_key == "application support"
-    ):
-        normalized_category = "Application Support"
-        normalized_subcategory = "Technical Support"
+        elif category_key == "application support":
+            if subcategory_key == "functional support":
+                subcategory = "Functional Support"
+            elif subcategory_key == "technical support":
+                subcategory = "Technical Support"
 
-    else:
-        normalized_subcategory = ""
+    # Application Issue
+    elif issue_type == "application issue":
 
-# ------------------------------------------------------------
-# Application Issue
-# Required:
-# Category = selected Application Issue category
-# Sub Category = same selected category
-# ------------------------------------------------------------
-elif issue_type_key == "application issue":
+        if category:
+            subcategory = category
 
-    if normalized_category:
-        normalized_subcategory = normalized_category
+    row["Category"] = category
+    row["Sub Category"] = subcategory
+
+    return row
