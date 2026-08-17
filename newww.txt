@@ -1,49 +1,58 @@
-def generate_high_level_categories(iteration_1_df):
-    """
-    Dynamically generate generic high-level categories
-    from Iteration 1 results using the LLM.
-    """
+# ============================================================
+# FINAL CLASSIFICATION HIERARCHY ENFORCEMENT
+# ============================================================
 
-    records = []
+issue_type_key = " ".join(issue_type.split()).lower()
 
-    for _, row in iteration_1_df.iterrows():
-        records.append({
-            "Issue Summary": clean_text(row.get("B - Issue Summary", "")),
-            "Category 1": clean_text(row.get("C - Category 1", "")),
-            "Action Taken": clean_text(row.get("D - Action Taken", ""))
-        })
+category_key = " ".join(normalized_category.split()).lower()
+subcategory_key = " ".join(normalized_subcategory.split()).lower()
 
-    prompt = f"""
-Analyze the following RITM data and generate a concise list of
-generic high-level categories.
+# ------------------------------------------------------------
+# Application Support
+# Required:
+# Issue Type  = Application Support
+# Category    = Application Support
+# Sub Category = Functional Support / Technical Support
+# ------------------------------------------------------------
+if issue_type_key == "application support":
 
-The categories must:
-- Be derived dynamically from the provided data.
-- Represent the broader business/technical nature of the requests.
-- NOT simply copy Category 1 values.
-- NOT contain RITM-specific names, IDs, people, dates, or other details.
-- NOT be hardcoded or based on a predefined classification list.
-- Group similar types of requests under meaningful generic categories.
+    normalized_category = "Application Support"
 
-RITM DATA:
-{json.dumps(records, indent=2)}
+    # Handle correct LLM output
+    if subcategory_key == "functional support":
+        normalized_subcategory = "Functional Support"
 
-Return ONLY valid JSON in exactly this format:
+    elif subcategory_key == "technical support":
+        normalized_subcategory = "Technical Support"
 
-{{
-    "high_level_categories": [
-        "Category 1",
-        "Category 2",
-        "Category 3"
-    ]
-}}
-"""
+    # Handle reversed LLM output:
+    # Functional Support -> Application Support
+    elif (
+        category_key == "functional support"
+        and subcategory_key == "application support"
+    ):
+        normalized_category = "Application Support"
+        normalized_subcategory = "Functional Support"
 
-    response = call_llm(
-        SYSTEM_PROMPT_ITERATION_2,
-        prompt
-    )
+    # Handle reversed LLM output:
+    # Technical Support -> Application Support
+    elif (
+        category_key == "technical support"
+        and subcategory_key == "application support"
+    ):
+        normalized_category = "Application Support"
+        normalized_subcategory = "Technical Support"
 
-    result = extract_json(response)
+    else:
+        normalized_subcategory = ""
 
-    return result.get("high_level_categories", [])
+# ------------------------------------------------------------
+# Application Issue
+# Required:
+# Category = selected Application Issue category
+# Sub Category = same selected category
+# ------------------------------------------------------------
+elif issue_type_key == "application issue":
+
+    if normalized_category:
+        normalized_subcategory = normalized_category
