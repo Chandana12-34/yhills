@@ -1,47 +1,29 @@
-# ============================================================
-# FINAL TAXONOMY VALIDATION
-# ============================================================
+if issue_type == "application support":
 
-def enforce_taxonomy(row):
-    issue_type = " ".join(
-        str(row.get("Issue Type", "") or "").split()
-    ).strip().lower()
+    if (
+        category_key == "functional support"
+        and subcategory_key == "application support"
+    ):
+        category = "Functional Support"
+        subcategory = "Application Support"
 
-    category = " ".join(
-        str(row.get("Category", "") or "").split()
-    ).strip()
+    elif (
+        category_key == "technical support"
+        and subcategory_key == "application support"
+    ):
+        category = "Technical Support"
+        subcategory = "Application Support"
 
-    subcategory = " ".join(
-        str(row.get("Sub Category", "") or "").split()
-    ).strip()
+    elif category_key == "application support":
+        if subcategory_key == "functional support":
+            category = "Functional Support"
+            subcategory = "Application Support"
 
-    category_key = category.lower()
-    subcategory_key = subcategory.lower()
+        elif subcategory_key == "technical support":
+            category = "Technical Support"
+            subcategory = "Application Support"
 
-    # Application Support
-    if issue_type == "application support":
+elif issue_type == "application issue":
 
-        if category_key == "functional support":
-            category = "Application Support"
-            subcategory = "Functional Support"
-
-        elif category_key == "technical support":
-            category = "Application Support"
-            subcategory = "Technical Support"
-
-        elif category_key == "application support":
-            if subcategory_key == "functional support":
-                subcategory = "Functional Support"
-            elif subcategory_key == "technical support":
-                subcategory = "Technical Support"
-
-    # Application Issue
-    elif issue_type == "application issue":
-
-        if category:
-            subcategory = category
-
-    row["Category"] = category
-    row["Sub Category"] = subcategory
-
-    return row
+    if category:
+        subcategory = category
