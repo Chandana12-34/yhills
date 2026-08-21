@@ -1,191 +1,138 @@
-from selenium import webdriver
-from selenium.webdriver.edge.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+from playwright.sync_api import sync_playwright
 import pandas as pd
-import time
-
 
 URL = "https://h2h.cib.echonet/monitor.aspx"
 
 
 def scrape_h2h():
 
-    # -----------------------------
-    # Configure Microsoft Edge
-    # -----------------------------
-    options = Options()
+    with sync_playwright() as p:
 
-    # Keep browser visible while testing
-    # DO NOT use headless mode initially
+        print("Opening Microsoft Edge...")
 
-    options.add_argument("--ignore-certificate-errors")
+        browser = p.chromium.launch(
+            channel="msedge",
+            headless=False
+        )
 
-    driver = webdriver.Edge(options=options)
-
-    try:
+        page = browser.new_page()
 
         print("Opening H2H monitor page...")
 
-        driver.get(URL)
-
-        # Wait until page is loaded
-        WebDriverWait(driver, 30).until(
-            lambda d: d.execute_script(
-                "return document.readyState"
-            ) == "complete"
+        page.goto(
+            URL,
+            wait_until="domcontentloaded",
+            timeout=60000
         )
 
-        print("Page loaded.")
-        print("Page title:", driver.title)
+        print("Page loaded!")
+        print("Page title:", page.title())
 
-        # Give internal page some additional time
-        time.sleep(5)
+        # Allow the internal page to finish loading
+        page.wait_for_timeout(5000)
 
-        # -----------------------------------------
-        # Find the table containing Title + Status
-        # -----------------------------------------
+        # Find tables
+        tables = page.locator("table")
 
-        tables = driver.find_elements(By.TAG_NAME, "table")
-
-        print("Tables found:", len(tables))
+        print("Tables found:", tables.count())
 
         results = []
 
-        for table_index, table in enumerate(tables):
+        for i in range(tables.count()):
 
-            rows = table.find_elements(By.TAG_NAME, "tr")
-
-            if not rows:
-                continue
+            table = tables.nth(i)
+            rows = table.locator("tr")
 
             print(
-                f"Checking table {table_index + 1}, "
-                f"rows: {len(rows)}"
+                f"Checking table {i + 1} "
+                f"({rows.count()} rows)"
             )
 
-            # -----------------------------------------
-            # Find header row
-            # -----------------------------------------
+            for j in range(rows.count()):
 
-            title_index = None
-            status_index = None
+                row = rows.nth(j)
 
-            for row in rows:
+                cells = row.locator("th, td")
 
-                cells = row.find_elements(
-                    By.XPATH,
-                    "./th | ./td"
-                )
+                values = []
 
-                values = [
-                    cell.text.strip()
-                    for cell in cells
-                ]
+                for k in range(cells.count()):
+
+                    values.append(
+                        cells.nth(k).inner_text().strip()
+                    )
+
+                if not values:
+                    continue
 
                 normalized = [
                     value.lower()
                     for value in values
                 ]
 
-                if "title" in normalized and "status" in normalized:
+                # Find the header row
+                if (
+                    "title" in normalized
+                    and "status" in normalized
+                ):
 
                     title_index = normalized.index("title")
                     status_index = normalized.index("status")
 
-                    print(
-                        "Found monitor table!"
-                    )
+                    print()
+                    print("================================")
+                    print("H2H MONITOR TABLE FOUND")
+                    print("================================")
+                    print("Title column:", title_index)
+                    print("Status column:", status_index)
 
-                    print(
-                        "Title column:",
-                        title_index
-                    )
+                    # Extract data rows
+                    for r in range(
+                        j + 1,
+                        rows.count()
+                    ):
 
-                    print(
-                        "Status column:",
-                        status_index
-                    )
+                        data_row = rows.nth(r)
+                        data_cells = data_row.locator("th, td")
+
+                        data_values = []
+
+                        for c in range(
+                            data_cells.count()
+                        ):
+
+                            data_values.append(
+                                data_cells.nth(c)
+                                .inner_text()
+                                .strip()
+                            )
+
+                        if len(data_values) <= max(
+                            title_index,
+                            status_index
+                        ):
+                            continue
+
+                        title = data_values[title_index]
+                        status = data_values[status_index]
+
+                        if not title:
+                            continue
+
+                        results.append({
+                            "Title": title,
+                            "Status": status
+                        })
 
                     break
 
-            # -----------------------------------------
-            # If correct table found
-            # -----------------------------------------
-
-            if title_index is not None:
-
-                header_found = False
-
-                for row in rows:
-
-                    cells = row.find_elements(
-                        By.XPATH,
-                        "./th | ./td"
-                    )
-
-                    values = [
-                        cell.text.strip()
-                        for cell in cells
-                    ]
-
-                    if not values:
-                        continue
-
-                    normalized = [
-                        value.lower()
-                        for value in values
-                    ]
-
-                    # Skip header row
-                    if (
-                        "title" in normalized
-                        and "status" in normalized
-                    ):
-                        header_found = True
-                        continue
-
-                    if not header_found:
-                        continue
-
-                    # Make sure both columns exist
-                    if (
-                        title_index >= len(values)
-                        or status_index >= len(values)
-                    ):
-                        continue
-
-                    title = values[title_index]
-                    status = values[status_index]
-
-                    # Ignore completely empty rows
-                    if not title:
-                        continue
-
-                    results.append({
-                        "Title": title,
-                        "Status": status
-                    })
-
+            if results:
                 break
 
-        # -----------------------------------------
-        # Convert to DataFrame
-        # -----------------------------------------
+        browser.close()
 
-        df = pd.DataFrame(results)
+        return pd.DataFrame(results)
 
-        return df
-
-    finally:
-
-        driver.quit()
-
-
-# ==========================================
-# TEST
-# ==========================================
 
 if __name__ == "__main__":
 
@@ -193,24 +140,28 @@ if __name__ == "__main__":
 
         df = scrape_h2h()
 
-        print("\n==============================")
+        print()
+        print("========================================")
         print("H2H MONITOR RESULTS")
-        print("==============================\n")
+        print("========================================")
 
         if df.empty:
 
-            print("No data found.")
+            print("No records found.")
 
         else:
 
             print(df.to_string(index=False))
 
-            print(
-                f"\nTotal records: {len(df)}"
-            )
+            print()
+            print("Total records:", len(df))
 
     except Exception as e:
 
-        print("\nERROR:")
+        print()
+        print("========================================")
+        print("ERROR")
+        print("========================================")
+
         print(type(e).__name__)
         print(str(e))
