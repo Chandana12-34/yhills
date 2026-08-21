@@ -1,65 +1,199 @@
 from playwright.sync_api import sync_playwright
+import pandas as pd
+
 
 URL = "https://h2h.cib.echonet/monitor.aspx"
 
 
-with sync_playwright() as p:
+def scrape_h2h():
 
-    print("Opening Microsoft Edge...")
+    with sync_playwright() as p:
 
-    browser = p.chromium.launch(
-        channel="msedge",
-        headless=False
-    )
+        # Open Microsoft Edge
+        browser = p.chromium.launch(
+            channel="msedge",
+            headless=False
+        )
 
-    page = browser.new_page()
+        page = browser.new_page()
 
-    print("Opening H2H monitor page...")
+        print("Opening H2H monitor page...")
 
-    try:
-
-        # IMPORTANT:
-        # Use "commit" instead of "domcontentloaded"
+        # Don't wait for DOMContentLoaded because this
+        # internal page can take a long time to finish loading.
         page.goto(
             URL,
             wait_until="commit",
             timeout=120000
         )
 
-        print("Navigation started successfully.")
+        print("Page opened successfully.")
 
-    except Exception as e:
+        # Allow table to render
+        page.wait_for_timeout(10000)
 
-        print("Navigation error:")
-        print(type(e).__name__)
-        print(str(e))
+        tables = page.locator("table")
 
-    # Give the page time to render
-    print("Waiting for page...")
-    page.wait_for_timeout(15000)
+        print("Number of tables:", tables.count())
 
-    print("Current URL:")
-    print(page.url)
+        result = []
 
-    print("Page title:")
-    print(page.title())
+        # -----------------------------------------
+        # Find the table containing Title + Status
+        # -----------------------------------------
 
-    print("Page content length:")
-    print(len(page.content()))
+        for table_index in range(tables.count()):
 
-    # Save whatever Playwright received
-    with open(
-        "h2h_page.html",
-        "w",
-        encoding="utf-8"
-    ) as f:
+            table = tables.nth(table_index)
 
-        f.write(page.content())
+            rows = table.locator("tr")
 
-    print("Saved page to h2h_page.html")
+            for row_index in range(rows.count()):
 
-    print("Browser will remain open for 30 seconds.")
+                row = rows.nth(row_index)
 
-    page.wait_for_timeout(30000)
+                # Direct cells belonging to this row
+                cells = row.locator(
+                    "xpath=./th | ./td"
+                )
 
-    browser.close()
+                values = []
+
+                for cell_index in range(cells.count()):
+
+                    text = cells.nth(cell_index).inner_text()
+
+                    values.append(
+                        text.strip()
+                    )
+
+                if not values:
+                    continue
+
+                # Convert to lowercase for comparison
+                headers = [
+                    value.lower()
+                    for value in values
+                ]
+
+                # -----------------------------------------
+                # Found the header:
+                # Title | Description | Log | Exception | Status
+                # -----------------------------------------
+
+                if (
+                    "title" in headers
+                    and "status" in headers
+                ):
+
+                    title_index = headers.index("title")
+                    status_index = headers.index("status")
+
+                    print(
+                        f"Found monitor table: {table_index + 1}"
+                    )
+
+                    print(
+                        "Title column:",
+                        title_index
+                    )
+
+                    print(
+                        "Status column:",
+                        status_index
+                    )
+
+                    # -----------------------------------------
+                    # Read rows below header
+                    # -----------------------------------------
+
+                    for data_row_index in range(
+                        row_index + 1,
+                        rows.count()
+                    ):
+
+                        data_row = rows.nth(
+                            data_row_index
+                        )
+
+                        data_cells = data_row.locator(
+                            "xpath=./th | ./td"
+                        )
+
+                        data = []
+
+                        for cell_index in range(
+                            data_cells.count()
+                        ):
+
+                            text = (
+                                data_cells
+                                .nth(cell_index)
+                                .inner_text()
+                                .strip()
+                            )
+
+                            data.append(text)
+
+                        # Make sure required columns exist
+                        if len(data) <= status_index:
+                            continue
+
+                        title = data[title_index]
+                        status = data[status_index]
+
+                        # Ignore empty rows
+                        if not title:
+                            continue
+
+                        result.append({
+                            "Title": title,
+                            "Status": status
+                        })
+
+                    # We found the correct table
+                    break
+
+            # Stop searching tables after finding data
+            if result:
+                break
+
+        browser.close()
+
+        return pd.DataFrame(result)
+
+
+# =====================================================
+# TEST THE SCRAPER
+# =====================================================
+
+if __name__ == "__main__":
+
+    df = scrape_h2h()
+
+    print("\n")
+    print("=" * 70)
+    print("H2H MONITOR DATA")
+    print("=" * 70)
+
+    if df.empty:
+
+        print("No data found.")
+
+    else:
+
+        print(
+            df.to_string(index=False)
+        )
+
+        print("\nTotal records:", len(df))
+
+        # Save result for testing
+        df.to_csv(
+            "h2h_monitor.csv",
+            index=False
+        )
+
+        print(
+            "\nSaved to h2h_monitor.csv"
+        )
