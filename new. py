@@ -1,167 +1,65 @@
 from playwright.sync_api import sync_playwright
-import pandas as pd
 
 URL = "https://h2h.cib.echonet/monitor.aspx"
 
 
-def scrape_h2h():
+with sync_playwright() as p:
 
-    with sync_playwright() as p:
+    print("Opening Microsoft Edge...")
 
-        print("Opening Microsoft Edge...")
+    browser = p.chromium.launch(
+        channel="msedge",
+        headless=False
+    )
 
-        browser = p.chromium.launch(
-            channel="msedge",
-            headless=False
-        )
+    page = browser.new_page()
 
-        page = browser.new_page()
-
-        print("Opening H2H monitor page...")
-
-        page.goto(
-            URL,
-            wait_until="domcontentloaded",
-            timeout=60000
-        )
-
-        print("Page loaded!")
-        print("Page title:", page.title())
-
-        # Allow the internal page to finish loading
-        page.wait_for_timeout(5000)
-
-        # Find tables
-        tables = page.locator("table")
-
-        print("Tables found:", tables.count())
-
-        results = []
-
-        for i in range(tables.count()):
-
-            table = tables.nth(i)
-            rows = table.locator("tr")
-
-            print(
-                f"Checking table {i + 1} "
-                f"({rows.count()} rows)"
-            )
-
-            for j in range(rows.count()):
-
-                row = rows.nth(j)
-
-                cells = row.locator("th, td")
-
-                values = []
-
-                for k in range(cells.count()):
-
-                    values.append(
-                        cells.nth(k).inner_text().strip()
-                    )
-
-                if not values:
-                    continue
-
-                normalized = [
-                    value.lower()
-                    for value in values
-                ]
-
-                # Find the header row
-                if (
-                    "title" in normalized
-                    and "status" in normalized
-                ):
-
-                    title_index = normalized.index("title")
-                    status_index = normalized.index("status")
-
-                    print()
-                    print("================================")
-                    print("H2H MONITOR TABLE FOUND")
-                    print("================================")
-                    print("Title column:", title_index)
-                    print("Status column:", status_index)
-
-                    # Extract data rows
-                    for r in range(
-                        j + 1,
-                        rows.count()
-                    ):
-
-                        data_row = rows.nth(r)
-                        data_cells = data_row.locator("th, td")
-
-                        data_values = []
-
-                        for c in range(
-                            data_cells.count()
-                        ):
-
-                            data_values.append(
-                                data_cells.nth(c)
-                                .inner_text()
-                                .strip()
-                            )
-
-                        if len(data_values) <= max(
-                            title_index,
-                            status_index
-                        ):
-                            continue
-
-                        title = data_values[title_index]
-                        status = data_values[status_index]
-
-                        if not title:
-                            continue
-
-                        results.append({
-                            "Title": title,
-                            "Status": status
-                        })
-
-                    break
-
-            if results:
-                break
-
-        browser.close()
-
-        return pd.DataFrame(results)
-
-
-if __name__ == "__main__":
+    print("Opening H2H monitor page...")
 
     try:
 
-        df = scrape_h2h()
+        # IMPORTANT:
+        # Use "commit" instead of "domcontentloaded"
+        page.goto(
+            URL,
+            wait_until="commit",
+            timeout=120000
+        )
 
-        print()
-        print("========================================")
-        print("H2H MONITOR RESULTS")
-        print("========================================")
-
-        if df.empty:
-
-            print("No records found.")
-
-        else:
-
-            print(df.to_string(index=False))
-
-            print()
-            print("Total records:", len(df))
+        print("Navigation started successfully.")
 
     except Exception as e:
 
-        print()
-        print("========================================")
-        print("ERROR")
-        print("========================================")
-
+        print("Navigation error:")
         print(type(e).__name__)
         print(str(e))
+
+    # Give the page time to render
+    print("Waiting for page...")
+    page.wait_for_timeout(15000)
+
+    print("Current URL:")
+    print(page.url)
+
+    print("Page title:")
+    print(page.title())
+
+    print("Page content length:")
+    print(len(page.content()))
+
+    # Save whatever Playwright received
+    with open(
+        "h2h_page.html",
+        "w",
+        encoding="utf-8"
+    ) as f:
+
+        f.write(page.content())
+
+    print("Saved page to h2h_page.html")
+
+    print("Browser will remain open for 30 seconds.")
+
+    page.wait_for_timeout(30000)
+
+    browser.close()
