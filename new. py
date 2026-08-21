@@ -1,199 +1,96 @@
-from playwright.sync_api import sync_playwright
-import pandas as pd
+import streamlit as st
+from datetime import datetime
+
+from apio import scrape_h2h
 
 
-URL = "https://h2h.cib.echonet/monitor.aspx"
+st.subheader("H2H Monitor")
 
 
-def scrape_h2h():
+@st.fragment(run_every="30s")
+def h2h_monitor():
 
-    with sync_playwright() as p:
+    try:
 
-        # Open Microsoft Edge
-        browser = p.chromium.launch(
-            channel="msedge",
-            headless=False
+        # Automatically scrape H2H
+        df = scrape_h2h()
+
+        if df.empty:
+
+            st.warning("No H2H monitor data found.")
+            return
+
+        # Clean data
+        df["Title"] = (
+            df["Title"]
+            .astype(str)
+            .str.strip()
         )
 
-        page = browser.new_page()
-
-        print("Opening H2H monitor page...")
-
-        # Don't wait for DOMContentLoaded because this
-        # internal page can take a long time to finish loading.
-        page.goto(
-            URL,
-            wait_until="commit",
-            timeout=120000
+        df["Status"] = (
+            df["Status"]
+            .astype(str)
+            .str.strip()
+            .str.upper()
         )
 
-        print("Page opened successfully.")
+        # Summary
+        total = len(df)
 
-        # Allow table to render
-        page.wait_for_timeout(10000)
-
-        tables = page.locator("table")
-
-        print("Number of tables:", tables.count())
-
-        result = []
-
-        # -----------------------------------------
-        # Find the table containing Title + Status
-        # -----------------------------------------
-
-        for table_index in range(tables.count()):
-
-            table = tables.nth(table_index)
-
-            rows = table.locator("tr")
-
-            for row_index in range(rows.count()):
-
-                row = rows.nth(row_index)
-
-                # Direct cells belonging to this row
-                cells = row.locator(
-                    "xpath=./th | ./td"
-                )
-
-                values = []
-
-                for cell_index in range(cells.count()):
-
-                    text = cells.nth(cell_index).inner_text()
-
-                    values.append(
-                        text.strip()
-                    )
-
-                if not values:
-                    continue
-
-                # Convert to lowercase for comparison
-                headers = [
-                    value.lower()
-                    for value in values
-                ]
-
-                # -----------------------------------------
-                # Found the header:
-                # Title | Description | Log | Exception | Status
-                # -----------------------------------------
-
-                if (
-                    "title" in headers
-                    and "status" in headers
-                ):
-
-                    title_index = headers.index("title")
-                    status_index = headers.index("status")
-
-                    print(
-                        f"Found monitor table: {table_index + 1}"
-                    )
-
-                    print(
-                        "Title column:",
-                        title_index
-                    )
-
-                    print(
-                        "Status column:",
-                        status_index
-                    )
-
-                    # -----------------------------------------
-                    # Read rows below header
-                    # -----------------------------------------
-
-                    for data_row_index in range(
-                        row_index + 1,
-                        rows.count()
-                    ):
-
-                        data_row = rows.nth(
-                            data_row_index
-                        )
-
-                        data_cells = data_row.locator(
-                            "xpath=./th | ./td"
-                        )
-
-                        data = []
-
-                        for cell_index in range(
-                            data_cells.count()
-                        ):
-
-                            text = (
-                                data_cells
-                                .nth(cell_index)
-                                .inner_text()
-                                .strip()
-                            )
-
-                            data.append(text)
-
-                        # Make sure required columns exist
-                        if len(data) <= status_index:
-                            continue
-
-                        title = data[title_index]
-                        status = data[status_index]
-
-                        # Ignore empty rows
-                        if not title:
-                            continue
-
-                        result.append({
-                            "Title": title,
-                            "Status": status
-                        })
-
-                    # We found the correct table
-                    break
-
-            # Stop searching tables after finding data
-            if result:
-                break
-
-        browser.close()
-
-        return pd.DataFrame(result)
-
-
-# =====================================================
-# TEST THE SCRAPER
-# =====================================================
-
-if __name__ == "__main__":
-
-    df = scrape_h2h()
-
-    print("\n")
-    print("=" * 70)
-    print("H2H MONITOR DATA")
-    print("=" * 70)
-
-    if df.empty:
-
-        print("No data found.")
-
-    else:
-
-        print(
-            df.to_string(index=False)
+        passed = (
+            df["Status"]
+            .eq("PASS")
+            .sum()
         )
 
-        print("\nTotal records:", len(df))
-
-        # Save result for testing
-        df.to_csv(
-            "h2h_monitor.csv",
-            index=False
+        failed = (
+            df["Status"]
+            .eq("FAIL")
+            .sum()
         )
 
-        print(
-            "\nSaved to h2h_monitor.csv"
+        # Header
+        st.write(
+            f"Last updated: "
+            f"{datetime.now().strftime('%H:%M:%S')}"
         )
+
+        # Metrics
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.metric(
+                "Total Tests",
+                total
+            )
+
+        with col2:
+            st.metric(
+                "Passed",
+                passed
+            )
+
+        with col3:
+            st.metric(
+                "Failed",
+                failed
+            )
+
+        st.divider()
+
+        # Only Title + Status
+        st.dataframe(
+            df[["Title", "Status"]],
+            width="stretch",
+            hide_index=True
+        )
+
+    except Exception as e:
+
+        st.error(
+            f"H2H monitoring error: {e}"
+        )
+
+
+# Start automatic monitoring
+h2h_monitor()
