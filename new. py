@@ -1,96 +1,155 @@
-import streamlit as st
-from datetime import datetime
-
-from apio import scrape_h2h
+import pandas as pd
+from playwright.sync_api import sync_playwright
 
 
-st.subheader("H2H Monitor")
+URL = "https://h2h.cib.echonet/monitor.aspx"
 
 
-@st.fragment(run_every="30s")
-def h2h_monitor():
+def scrape_h2h():
 
-    try:
+    result = []
 
-        # Automatically scrape H2H
-        df = scrape_h2h()
+    with sync_playwright() as p:
 
-        if df.empty:
-
-            st.warning("No H2H monitor data found.")
-            return
-
-        # Clean data
-        df["Title"] = (
-            df["Title"]
-            .astype(str)
-            .str.strip()
+        browser = p.chromium.launch(
+            channel="msedge",
+            headless=False
         )
 
-        df["Status"] = (
-            df["Status"]
-            .astype(str)
-            .str.strip()
-            .str.upper()
-        )
+        page = browser.new_page()
 
-        # Summary
-        total = len(df)
+        try:
 
-        passed = (
-            df["Status"]
-            .eq("PASS")
-            .sum()
-        )
+            print("Opening H2H monitor page...")
 
-        failed = (
-            df["Status"]
-            .eq("FAIL")
-            .sum()
-        )
-
-        # Header
-        st.write(
-            f"Last updated: "
-            f"{datetime.now().strftime('%H:%M:%S')}"
-        )
-
-        # Metrics
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            st.metric(
-                "Total Tests",
-                total
+            page.goto(
+                URL,
+                wait_until="commit",
+                timeout=120000
             )
 
-        with col2:
-            st.metric(
-                "Passed",
-                passed
+            print("Page opened successfully.")
+
+            # Give the page time to render
+            page.wait_for_timeout(10000)
+
+            tables = page.locator("table")
+
+            print(
+                "Number of tables:",
+                tables.count()
             )
 
-        with col3:
-            st.metric(
-                "Failed",
-                failed
-            )
+            # Find the table containing Title and Status
+            for table_index in range(tables.count()):
 
-        st.divider()
+                table = tables.nth(table_index)
 
-        # Only Title + Status
-        st.dataframe(
-            df[["Title", "Status"]],
-            width="stretch",
-            hide_index=True
-        )
+                rows = table.locator("tr")
 
-    except Exception as e:
+                for row_index in range(rows.count()):
 
-        st.error(
-            f"H2H monitoring error: {e}"
-        )
+                    row = rows.nth(row_index)
+
+                    cells = row.locator(
+                        "xpath=./th | ./td"
+                    )
+
+                    headers = []
+
+                    for i in range(cells.count()):
+
+                        headers.append(
+                            cells.nth(i)
+                            .inner_text()
+                            .strip()
+                            .lower()
+                        )
+
+                    if (
+                        "title" in headers
+                        and "status" in headers
+                    ):
+
+                        title_index = headers.index(
+                            "title"
+                        )
+
+                        status_index = headers.index(
+                            "status"
+                        )
+
+                        print(
+                            "Found H2H monitor table."
+                        )
+
+                        # Read rows below header
+                        for r in range(
+                            row_index + 1,
+                            rows.count()
+                        ):
+
+                            data_row = rows.nth(r)
+
+                            data_cells = data_row.locator(
+                                "xpath=./th | ./td"
+                            )
+
+                            values = []
+
+                            for c in range(
+                                data_cells.count()
+                            ):
+
+                                values.append(
+                                    data_cells
+                                    .nth(c)
+                                    .inner_text()
+                                    .strip()
+                                )
+
+                            if len(values) <= status_index:
+                                continue
+
+                            title = values[
+                                title_index
+                            ]
+
+                            status = values[
+                                status_index
+                            ]
+
+                            if not title:
+                                continue
+
+                            result.append({
+                                "Title": title,
+                                "Status": status
+                            })
+
+                        break
+
+                if result:
+                    break
+
+        finally:
+
+            browser.close()
+
+    return pd.DataFrame(result)
 
 
-# Start automatic monitoring
-h2h_monitor()
+if __name__ == "__main__":
+
+    df = scrape_h2h()
+
+    print("\n")
+    print("=" * 70)
+    print("H2H MONITOR DATA")
+    print("=" * 70)
+
+    print(
+        df.to_string(index=False)
+    )
+
+    print("\nTotal records:", len(df))
