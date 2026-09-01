@@ -1,155 +1,73 @@
-import pandas as pd
-from playwright.sync_api import sync_playwright
+from selenium import webdriver
+from selenium.webdriver.edge.service import Service
+from selenium.webdriver.edge.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 
-URL = "https://h2h.cib.echonet/monitor.aspx"
+EDGE_DRIVER_PATH = "msedgedriver.exe"
 
 
-def scrape_h2h():
+def fetch_monitor_results(url):
 
-    result = []
+    driver = None
 
-    with sync_playwright() as p:
+    try:
+        # Create Edge driver
+        options = Options()
+        options.add_argument("--start-maximized")
 
-        browser = p.chromium.launch(
-            channel="msedge",
-            headless=False
+        service = Service(EDGE_DRIVER_PATH)
+
+        driver = webdriver.Edge(
+            service=service,
+            options=options
         )
 
-        page = browser.new_page()
+        # Open monitor page
+        driver.get(url)
 
-        try:
-
-            print("Opening H2H monitor page...")
-
-            page.goto(
-                URL,
-                wait_until="commit",
-                timeout=120000
+        # Wait for the table
+        table = WebDriverWait(driver, 20).until(
+            EC.presence_of_element_located(
+                (By.ID, "gvTestResults")
             )
+        )
 
-            print("Page opened successfully.")
+        # Get all data rows
+        rows = table.find_elements(
+            By.XPATH,
+            ".//tbody/tr[position() > 1]"
+        )
 
-            # Give the page time to render
-            page.wait_for_timeout(10000)
+        results = []
 
-            tables = page.locator("table")
+        for row in rows:
 
-            print(
-                "Number of tables:",
-                tables.count()
-            )
+            cells = row.find_elements(By.TAG_NAME, "td")
 
-            # Find the table containing Title and Status
-            for table_index in range(tables.count()):
+            if len(cells) >= 5:
 
-                table = tables.nth(table_index)
+                title = cells[0].text.strip()
+                status = cells[4].text.strip()
 
-                rows = table.locator("tr")
+                results.append({
+                    "title": title,
+                    "status": status
+                })
 
-                for row_index in range(rows.count()):
+        return results
 
-                    row = rows.nth(row_index)
+    except Exception as e:
 
-                    cells = row.locator(
-                        "xpath=./th | ./td"
-                    )
+        return [{
+            "title": "Monitor",
+            "status": "ERROR",
+            "error": str(e)
+        }]
 
-                    headers = []
+    finally:
 
-                    for i in range(cells.count()):
-
-                        headers.append(
-                            cells.nth(i)
-                            .inner_text()
-                            .strip()
-                            .lower()
-                        )
-
-                    if (
-                        "title" in headers
-                        and "status" in headers
-                    ):
-
-                        title_index = headers.index(
-                            "title"
-                        )
-
-                        status_index = headers.index(
-                            "status"
-                        )
-
-                        print(
-                            "Found H2H monitor table."
-                        )
-
-                        # Read rows below header
-                        for r in range(
-                            row_index + 1,
-                            rows.count()
-                        ):
-
-                            data_row = rows.nth(r)
-
-                            data_cells = data_row.locator(
-                                "xpath=./th | ./td"
-                            )
-
-                            values = []
-
-                            for c in range(
-                                data_cells.count()
-                            ):
-
-                                values.append(
-                                    data_cells
-                                    .nth(c)
-                                    .inner_text()
-                                    .strip()
-                                )
-
-                            if len(values) <= status_index:
-                                continue
-
-                            title = values[
-                                title_index
-                            ]
-
-                            status = values[
-                                status_index
-                            ]
-
-                            if not title:
-                                continue
-
-                            result.append({
-                                "Title": title,
-                                "Status": status
-                            })
-
-                        break
-
-                if result:
-                    break
-
-        finally:
-
-            browser.close()
-
-    return pd.DataFrame(result)
-
-
-if __name__ == "__main__":
-
-    df = scrape_h2h()
-
-    print("\n")
-    print("=" * 70)
-    print("H2H MONITOR DATA")
-    print("=" * 70)
-
-    print(
-        df.to_string(index=False)
-    )
-
-    print("\nTotal records:", len(df))
+        if driver:
+            driver.quit()
