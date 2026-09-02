@@ -1,98 +1,25 @@
-for ep in env_cfg.endpoints:
+import requests
 
-    data = st.session_state.health_data.get(
-        ep.name,
-        {
-            "endpoint_name": ep.name,
-            "components": [],
-            "status": "UNKNOWN",
-        }
-    )
+TOKEN_URL = (
+    "https://api-uat-mtls.staging.echonet/"
+    "oauth2/v1/token"
+)
 
-    comp_rows = ""
+CLIENT_ID = "YOUR_CLIENT_ID"
+CLIENT_SECRET = "YOUR_CLIENT_SECRET"
 
-    # =========================================================
-    # MAOS ONLY — Selenium output
-    # =========================================================
-    if app == "MAOS":
+response = requests.post(
+    TOKEN_URL,
+    params={
+        "grant_type": "client_credentials"
+    },
+    auth=(CLIENT_ID, CLIENT_SECRET),
+    headers={
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+    },
+    timeout=30
+)
 
-        for comp in data.get("components", []):
-            status = comp.get("status", "UNKNOWN")
-            title = comp.get("title", "Selenium")
-
-            stl = badge_style(status)
-            badge = f"<span class='{stl['badge']} status-badge'>{status}</span>"
-
-            comp_rows += (
-                f"<tr>"
-                f"<td>{title}</td>"
-                f"<td>{badge}</td>"
-                f"</tr>"
-            )
-
-        if not comp_rows:
-            comp_rows = (
-                "<tr><td colspan='2'>No Selenium components</td></tr>"
-            )
-
-        # MAOS endpoint status
-        ep_status = data.get("status", "UNKNOWN")
-        ep_stl = badge_style(ep_status)
-        ep_badge = (
-            f"<span class='{ep_stl['badge']} status-badge'>"
-            f"{ep_status}</span>"
-        )
-
-        sections_html += f"""
-        <h4>{ep.name} {ep_badge}</h4>
-        <table class='compact-table' style='width:100%;border-collapse:collapse;'>
-            <thead style='background:#f8f9fa;'>
-                <tr>
-                    <th>Component</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody>{comp_rows}</tbody>
-        </table>
-        <div style='margin-bottom:1.5rem;'></div>
-        """
-
-    # =========================================================
-    # EVERYTHING ELSE — YOUR ORIGINAL CODE
-    # =========================================================
-    else:
-
-        for comp in data.get("components", []):
-            stl = badge_style(comp["status"])
-            badge = f"<span class='{stl['badge']} status-badge'>{comp['status']}</span>"
-            details_str = format_details(comp.get("details"))
-
-            comp_rows += (
-                f"<tr><td>{comp['title']}</td><td>{badge}</td>"
-                f"<td>{details_str}</td></tr>"
-            )
-
-        if not comp_rows:
-            comp_rows = "<tr><td colspan='3'>No components</td></tr>"
-
-        ep_status = data.get("status", "UNKNOWN")
-        ep_stl = badge_style(ep_status)
-        ep_badge = (
-            f"<span class='{ep_stl['badge']} status-badge'>"
-            f"{ep_status}</span>"
-        )
-
-        sections_html += f"""
-        <h4>{ep.name} {ep_badge}</h4>
-        <table class='compact-table' style='width:100%;border-collapse:collapse;'>
-            <thead style='background:#f8f9fa;'>
-                <tr>
-                    <th>Component</th>
-                    <th>Status</th>
-                    <th>Details</th>
-                </tr>
-            </thead>
-            <tbody>{comp_rows}</tbody>
-        </table>
-        <div style='margin-bottom:1.5rem;'></div>
-        """
+print("Status:", response.status_code)
+print("Response:", response.text)
