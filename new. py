@@ -1,25 +1,88 @@
-import requests
+def get_access_token(session: requests.Session) -> str:
+    """
+    Obtain OAuth2 access token using client credentials + mTLS.
+    """
 
-TOKEN_URL = (
-    "https://api-uat-mtls.staging.echonet/"
-    "oauth2/v1/token"
-)
+    logger.info("Requesting OAuth access token...")
 
-CLIENT_ID = "YOUR_CLIENT_ID"
-CLIENT_SECRET = "YOUR_CLIENT_SECRET"
-
-response = requests.post(
-    TOKEN_URL,
-    params={
+    params = {
         "grant_type": "client_credentials"
-    },
-    auth=(CLIENT_ID, CLIENT_SECRET),
-    headers={
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-    },
-    timeout=30
-)
+    }
 
-print("Status:", response.status_code)
-print("Response:", response.text)
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+
+    try:
+        response = session.post(
+            TOKEN_URL,
+            params=params,
+
+            # mTLS
+            cert=(CLIENT_CERT, CLIENT_KEY),
+
+            # OAuth client credentials
+            auth=(CLIENT_ID, CLIENT_SECRET),
+
+            headers=headers,
+
+            # Same as Content-Length: 0 from curl
+            data=b"",
+
+            # SSL verification setting
+            verify=get_verify_setting(),
+
+            timeout=(CONNECT_TIMEOUT, READ_TIMEOUT),
+        )
+
+    except requests.exceptions.SSLError as exc:
+        raise RuntimeError(
+            f"SSL/mTLS error while obtaining token: {exc}"
+        ) from exc
+
+    except requests.exceptions.Timeout as exc:
+        raise RuntimeError(
+            "Token request timed out."
+        ) from exc
+
+    except requests.exceptions.RequestException as exc:
+        raise RuntimeError(
+            f"Token request failed: {exc}"
+        ) from exc
+
+    if response.status_code != 200:
+        # Don't expose credentials/token in logs.
+        raise RuntimeError(
+            f"Token request failed. "
+            f"HTTP {response.status_code}: "
+            f"{response.text[:500]}"
+        )
+
+    try:
+        token_data = response.json()
+
+    except ValueError as exc:
+        raise RuntimeError(
+            "Token API returned a non-JSON response."
+        ) from exc
+
+    access_token = token_data.get("access_token")
+
+    if not access_token:
+        raise RuntimeError(
+            "Token API response does not contain 'access_token'."
+        )
+
+    # Diagnostic information only.
+    # This does NOT print the actual access token.
+    logger.info(
+        "Token type: %s | Expires in: %s | Scope: %s",
+        token_data.get("token_type"),
+        token_data.get("expires_in"),
+        token_data.get("scope"),
+    )
+
+    logger.info("OAuth token obtained successfully.")
+
+    return access_token
