@@ -1,390 +1,98 @@
-import os
-import time
-import logging
-from typing import Dict, List, Optional
+for ep in env_cfg.endpoints:
 
-import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
-
-
-# ============================================================
-# CONFIGURATION
-# ============================================================
-
-BASE_URL = "https://api-uat-mtls.staging.echonet"
-
-TOKEN_URL = f"{BASE_URL}/oauth2/v1/token"
-HEALTH_URL = (
-    f"{BASE_URL}/ce-third-parties/v2/entities"
-    "?crdsCode=CLAUPAR"
-)
-
-# mTLS certificate and private key
-CLIENT_CERT = os.getenv("CLIENT_CERT", "client.crt")
-CLIENT_KEY = os.getenv("CLIENT_KEY", "client.key")
-
-# OAuth client credentials
-CLIENT_ID = os.getenv("CLIENT_ID")
-CLIENT_SECRET = os.getenv("CLIENT_SECRET")
-
-# Optional custom CA certificate.
-# Leave as None if your organization's CA is already trusted.
-CA_BUNDLE = os.getenv("CA_BUNDLE")
-
-# Timeouts
-CONNECT_TIMEOUT = 10
-READ_TIMEOUT = 30
-
-# Retry configuration
-MAX_RETRIES = 3
-BACKOFF_FACTOR = 1
-
-
-# ============================================================
-# LOGGING
-# ============================================================
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(message)s"
-)
-
-logger = logging.getLogger(__name__)
-
-
-# ============================================================
-# HTTP SESSION
-# ============================================================
-
-def create_session() -> requests.Session:
-    """
-    Creates a requests session with safe retry behaviour.
-    """
-
-    session = requests.Session()
-
-    retry_strategy = Retry(
-        total=MAX_RETRIES,
-        connect=MAX_RETRIES,
-        read=MAX_RETRIES,
-        status=MAX_RETRIES,
-
-        # Retry only temporary/server-side failures.
-        status_forcelist=(429, 500, 502, 503, 504),
-
-        # GET is safe to retry.
-        allowed_methods=frozenset(["GET"]),
-
-        backoff_factor=BACKOFF_FACTOR,
-
-        # Respect Retry-After if the server sends it.
-        respect_retry_after_header=True,
+    data = st.session_state.health_data.get(
+        ep.name,
+        {
+            "endpoint_name": ep.name,
+            "components": [],
+            "status": "UNKNOWN",
+        }
     )
 
-    adapter = HTTPAdapter(
-        max_retries=retry_strategy,
-        pool_connections=10,
-        pool_maxsize=10,
-    )
+    comp_rows = ""
 
-    session.mount("https://", adapter)
-    session.mount("http://", adapter)
+    # =========================================================
+    # MAOS ONLY — Selenium output
+    # =========================================================
+    if app == "MAOS":
 
-    return session
+        for comp in data.get("components", []):
+            status = comp.get("status", "UNKNOWN")
+            title = comp.get("title", "Selenium")
 
+            stl = badge_style(status)
+            badge = f"<span class='{stl['badge']} status-badge'>{status}</span>"
 
-# ============================================================
-# SSL CONFIGURATION
-# ============================================================
+            comp_rows += (
+                f"<tr>"
+                f"<td>{title}</td>"
+                f"<td>{badge}</td>"
+                f"</tr>"
+            )
 
-def get_verify_setting():
-    """
-    Returns the CA verification configuration.
+        if not comp_rows:
+            comp_rows = (
+                "<tr><td colspan='2'>No Selenium components</td></tr>"
+            )
 
-    If CA_BUNDLE is configured, use it.
-    Otherwise requests uses the normal system CA bundle.
-    """
-
-    return CA_BUNDLE if CA_BUNDLE else True
-
-
-# ============================================================
-# VALIDATE CONFIGURATION
-# ============================================================
-
-def validate_configuration() -> None:
-    """
-    Validate certificates and credentials before making requests.
-    """
-
-    if not CLIENT_ID:
-        raise RuntimeError(
-            "CLIENT_ID environment variable is not configured."
+        # MAOS endpoint status
+        ep_status = data.get("status", "UNKNOWN")
+        ep_stl = badge_style(ep_status)
+        ep_badge = (
+            f"<span class='{ep_stl['badge']} status-badge'>"
+            f"{ep_status}</span>"
         )
 
-    if not CLIENT_SECRET:
-        raise RuntimeError(
-            "CLIENT_SECRET environment variable is not configured."
+        sections_html += f"""
+        <h4>{ep.name} {ep_badge}</h4>
+        <table class='compact-table' style='width:100%;border-collapse:collapse;'>
+            <thead style='background:#f8f9fa;'>
+                <tr>
+                    <th>Component</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>{comp_rows}</tbody>
+        </table>
+        <div style='margin-bottom:1.5rem;'></div>
+        """
+
+    # =========================================================
+    # EVERYTHING ELSE — YOUR ORIGINAL CODE
+    # =========================================================
+    else:
+
+        for comp in data.get("components", []):
+            stl = badge_style(comp["status"])
+            badge = f"<span class='{stl['badge']} status-badge'>{comp['status']}</span>"
+            details_str = format_details(comp.get("details"))
+
+            comp_rows += (
+                f"<tr><td>{comp['title']}</td><td>{badge}</td>"
+                f"<td>{details_str}</td></tr>"
+            )
+
+        if not comp_rows:
+            comp_rows = "<tr><td colspan='3'>No components</td></tr>"
+
+        ep_status = data.get("status", "UNKNOWN")
+        ep_stl = badge_style(ep_status)
+        ep_badge = (
+            f"<span class='{ep_stl['badge']} status-badge'>"
+            f"{ep_status}</span>"
         )
 
-    if not os.path.isfile(CLIENT_CERT):
-        raise FileNotFoundError(
-            f"Client certificate not found: {CLIENT_CERT}"
-        )
-
-    if not os.path.isfile(CLIENT_KEY):
-        raise FileNotFoundError(
-            f"Client private key not found: {CLIENT_KEY}"
-        )
-
-
-# ============================================================
-# GET ACCESS TOKEN
-# ============================================================
-
-def get_access_token(session: requests.Session) -> str:
-    """
-    Obtain OAuth2 access token using client credentials + mTLS.
-    """
-
-    logger.info("Requesting OAuth access token...")
-
-    params = {
-        "grant_type": "client_credentials"
-    }
-
-    headers = {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-    }
-
-    try:
-        response = session.post(
-            TOKEN_URL,
-            params=params,
-
-            # mTLS
-            cert=(CLIENT_CERT, CLIENT_KEY),
-
-            # OAuth client credentials
-            auth=(CLIENT_ID, CLIENT_SECRET),
-
-            headers=headers,
-
-            # Same as Content-Length: 0 from curl
-            data=b"",
-
-            verify=get_verify_setting(),
-
-            timeout=(CONNECT_TIMEOUT, READ_TIMEOUT),
-        )
-
-    except requests.exceptions.SSLError as exc:
-        raise RuntimeError(
-            f"SSL/mTLS error while obtaining token: {exc}"
-        ) from exc
-
-    except requests.exceptions.Timeout as exc:
-        raise RuntimeError(
-            "Token request timed out."
-        ) from exc
-
-    except requests.exceptions.RequestException as exc:
-        raise RuntimeError(
-            f"Token request failed: {exc}"
-        ) from exc
-
-    if response.status_code != 200:
-        # Don't expose credentials/token in logs.
-        raise RuntimeError(
-            f"Token request failed. "
-            f"HTTP {response.status_code}: "
-            f"{response.text[:500]}"
-        )
-
-    try:
-        token_data = response.json()
-    except ValueError as exc:
-        raise RuntimeError(
-            "Token API returned a non-JSON response."
-        ) from exc
-
-    access_token = token_data.get("access_token")
-
-    if not access_token:
-        raise RuntimeError(
-            "Token API response does not contain 'access_token'."
-        )
-
-    logger.info("OAuth token obtained successfully.")
-
-    return access_token
-
-
-# ============================================================
-# HEALTH CHECK
-# ============================================================
-
-def check_health(
-    session: requests.Session,
-    access_token: str,
-    url: str,
-) -> Dict:
-    """
-    Check an application endpoint.
-
-    HTTP 200 = HEALTHY
-    Anything else = UNHEALTHY
-    """
-
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Accept": "*/*",
-        "x-version": "gamma",
-    }
-
-    start_time = time.perf_counter()
-
-    try:
-        response = session.get(
-            url,
-
-            # mTLS
-            cert=(CLIENT_CERT, CLIENT_KEY),
-
-            headers=headers,
-
-            verify=get_verify_setting(),
-
-            timeout=(CONNECT_TIMEOUT, READ_TIMEOUT),
-        )
-
-        response_time_ms = round(
-            (time.perf_counter() - start_time) * 1000,
-            2
-        )
-
-        is_healthy = response.status_code == 200
-
-        return {
-            "healthy": is_healthy,
-            "status": "UP" if is_healthy else "DOWN",
-            "status_code": response.status_code,
-            "response_time_ms": response_time_ms,
-            "error": None,
-        }
-
-    except requests.exceptions.SSLError as exc:
-
-        return {
-            "healthy": False,
-            "status": "DOWN",
-            "status_code": None,
-            "response_time_ms": None,
-            "error": f"SSL/mTLS error: {exc}",
-        }
-
-    except requests.exceptions.Timeout:
-
-        return {
-            "healthy": False,
-            "status": "DOWN",
-            "status_code": None,
-            "response_time_ms": None,
-            "error": "Request timed out",
-        }
-
-    except requests.exceptions.ConnectionError as exc:
-
-        return {
-            "healthy": False,
-            "status": "DOWN",
-            "status_code": None,
-            "response_time_ms": None,
-            "error": f"Connection error: {exc}",
-        }
-
-    except requests.exceptions.RequestException as exc:
-
-        return {
-            "healthy": False,
-            "status": "DOWN",
-            "status_code": None,
-            "response_time_ms": None,
-            "error": f"HTTP request error: {exc}",
-        }
-
-
-# ============================================================
-# COMPLETE HEALTH CHECK
-# ============================================================
-
-def run_health_check() -> Dict:
-    """
-    Complete flow:
-
-        1. Validate configuration
-        2. Create HTTP session
-        3. Get OAuth token
-        4. Call health endpoint
-        5. Return health result
-    """
-
-    try:
-
-        validate_configuration()
-
-        session = create_session()
-
-        # ----------------------------------------------------
-        # STEP 1: Get token
-        # ----------------------------------------------------
-
-        access_token = get_access_token(session)
-
-        # ----------------------------------------------------
-        # STEP 2: Call application endpoint
-        # ----------------------------------------------------
-
-        result = check_health(
-            session=session,
-            access_token=access_token,
-            url=HEALTH_URL,
-        )
-
-        return result
-
-    except Exception as exc:
-
-        logger.exception("Health check failed.")
-
-        return {
-            "healthy": False,
-            "status": "DOWN",
-            "status_code": None,
-            "response_time_ms": None,
-            "error": str(exc),
-        }
-
-
-# ============================================================
-# MAIN
-# ============================================================
-
-if __name__ == "__main__":
-
-    result = run_health_check()
-
-    print("\n" + "=" * 60)
-    print("APPLICATION HEALTH CHECK")
-    print("=" * 60)
-
-    print(f"Status       : {result['status']}")
-    print(f"HTTP Status  : {result['status_code']}")
-    print(f"Response Time: {result['response_time_ms']} ms")
-
-    if result["error"]:
-        print(f"Error        : {result['error']}")
-
-    print("=" * 60)
+        sections_html += f"""
+        <h4>{ep.name} {ep_badge}</h4>
+        <table class='compact-table' style='width:100%;border-collapse:collapse;'>
+            <thead style='background:#f8f9fa;'>
+                <tr>
+                    <th>Component</th>
+                    <th>Status</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody>{comp_rows}</tbody>
+        </table>
+        <div style='margin-bottom:1.5rem;'></div>
+        """
