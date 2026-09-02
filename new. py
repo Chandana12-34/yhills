@@ -1,37 +1,39 @@
 def get_access_token(session: requests.Session) -> str:
     """
-    Obtain OAuth2 access token using client credentials + mTLS.
+    Obtain OAuth2 access token using:
+    - OAuth2 client credentials
+    - mTLS client certificate
     """
 
     logger.info("Requesting OAuth access token...")
 
-    params = {
+    # OAuth2 token request body
+    data = {
         "grant_type": "client_credentials"
     }
 
     headers = {
-        "Content-Type": "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
         "Accept": "application/json",
     }
 
     try:
         response = session.post(
             TOKEN_URL,
-            params=params,
+
+            # OAuth2 client credentials
+            auth=(CLIENT_ID, CLIENT_SECRET),
+
+            # OAuth2 form data
+            data=data,
 
             # mTLS
             cert=(CLIENT_CERT, CLIENT_KEY),
 
-            # OAuth client credentials
-            auth=(CLIENT_ID, CLIENT_SECRET),
+            # SSL verification
+            verify=get_verify_setting(),
 
             headers=headers,
-
-            # Same as Content-Length: 0 from curl
-            data=b"",
-
-            # SSL verification setting
-            verify=get_verify_setting(),
 
             timeout=(CONNECT_TIMEOUT, READ_TIMEOUT),
         )
@@ -51,14 +53,15 @@ def get_access_token(session: requests.Session) -> str:
             f"Token request failed: {exc}"
         ) from exc
 
+    # Check token response
     if response.status_code != 200:
-        # Don't expose credentials/token in logs.
         raise RuntimeError(
             f"Token request failed. "
             f"HTTP {response.status_code}: "
             f"{response.text[:500]}"
         )
 
+    # Parse JSON
     try:
         token_data = response.json()
 
@@ -67,6 +70,7 @@ def get_access_token(session: requests.Session) -> str:
             "Token API returned a non-JSON response."
         ) from exc
 
+    # Get access token
     access_token = token_data.get("access_token")
 
     if not access_token:
@@ -74,8 +78,9 @@ def get_access_token(session: requests.Session) -> str:
             "Token API response does not contain 'access_token'."
         )
 
-    # Diagnostic information only.
-    # This does NOT print the actual access token.
+    # Make sure we are returning ONLY the token value.
+    access_token = access_token.strip()
+
     logger.info(
         "Token type: %s | Expires in: %s | Scope: %s",
         token_data.get("token_type"),
