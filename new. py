@@ -1,56 +1,37 @@
-def fetch_tpapi_health():
+def render_tpapi_details():
+    data = st.session_state.health_data.get("TPAPI")
 
-    try:
+    if not data:
+        st.warning("TPAPI health data not available.")
+        return
 
-        # Get OAuth token
-        access_token = get_access_token()
+    components = data.get("components", [])
 
-        # Monitor all BETA + GAMMA endpoints
-        results = monitor_endpoints(access_token)
+    beta = [x for x in components if x.get("version") == "BETA"]
+    gamma = [x for x in components if x.get("version") == "GAMMA"]
 
-        components = []
+    st.markdown("## TPAPI Health Check")
 
-        for result in results:
+    col1, col2 = st.columns(2)
 
-            components.append({
-                "name": result["name"],
-                "version": result["version"].upper(),
-                "status_code": result["status"],
-                "status": result["health"]
-            })
+    with col1:
+        st.markdown("### BETA")
 
-        # Overall TPAPI status
-        if components and all(
-            item["status"] == "UP"
-            for item in components
-        ):
-            overall_status = "UP"
-            error = None
+        for item in beta:
+            icon = "🟢" if item.get("status") == "UP" else "🔴"
 
-        else:
-            overall_status = "DOWN"
-            error = "One or more TPAPI endpoints are DOWN"
+            st.markdown(
+                f"**{icon} {item.get('name')}** — "
+                f"{item.get('status_code')} {item.get('status')}"
+            )
 
-        return {
-            "endpoint_name": "TPAPI",
-            "url": BASE_URL,
-            "status": overall_status,
-            "details": {},
-            "components": components,
-            "timestamp": datetime.now().isoformat(),
-            "error": error,
-            "response_time": None
-        }
+    with col2:
+        st.markdown("### GAMMA")
 
-    except Exception as e:
+        for item in gamma:
+            icon = "🟢" if item.get("status") == "UP" else "🔴"
 
-        return {
-            "endpoint_name": "TPAPI",
-            "url": BASE_URL,
-            "status": "DOWN",
-            "details": {},
-            "components": [],
-            "timestamp": datetime.now().isoformat(),
-            "error": str(e),
-            "response_time": None
-        }
+            st.markdown(
+                f"**{icon} {item.get('name')}** — "
+                f"{item.get('status_code')} {item.get('status')}"
+            )
