@@ -1,494 +1,98 @@
 import os
-import sys
-import time
-import json
-import base64
-import logging
-from typing import Optional, Dict, Any
-
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
-from dotenv import load_dotenv
-
-
-# ============================================================
-# LOAD ENVIRONMENT
-# ============================================================
-
-load_dotenv()
+from requests.auth import HTTPBasicAuth
 
 
 # ============================================================
 # CONFIGURATION
 # ============================================================
 
-BASE_URL = "https://api-uat-mtls.staging.echonet"
-
-TOKEN_URL = f"{BASE_URL}/oauth2/v1/token"
+TOKEN_URL = (
+    "https://api-staging-mtls.staging.echonet"
+    "/oauth2/v1/token?grant_type=client_credentials"
+)
 
 HEALTH_URL = (
-    f"{BASE_URL}/ce-third-parties/v2/entities"
-    f"?crdsCode=CLAUPAR"
+    "https://api-staging-mtls.staging.echonet"
+    "/ce-third-parties/v2/entities?crdsCode=CLAUPAR"
 )
 
-CLIENT_CERT = os.getenv(
-    "CLIENT_CERT",
-    r".\tappi-postman-stg 3.crt"
-)
-
-CLIENT_KEY = os.getenv(
-    "CLIENT_KEY",
-    r".\tappi-postman-stg 3.key"
-)
-
+# Store these as environment variables instead of hardcoding
 CLIENT_ID = os.getenv("CLIENT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
 
-# Temporary setting because your environment was returning
-# "self-signed certificate in certificate chain".
-# Production should use the correct CA bundle instead.
-VERIFY_SSL = False
+CERT_FILE = "client.crt"
+KEY_FILE = "client.key"
 
-CA_BUNDLE = os.getenv("CA_BUNDLE")
-
-CONNECT_TIMEOUT = 10
-READ_TIMEOUT = 30
+TIMEOUT = 30
 
 
 # ============================================================
-# LOGGING
+# STEP 1: GET ACCESS TOKEN
 # ============================================================
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(message)s"
-)
+def get_access_token():
 
-logger = logging.getLogger(__name__)
+    headers = {
+        "Content-Type": "application/json",
+        "Content-Length": "0"
+    }
 
-
-# ============================================================
-# VALIDATION
-# ============================================================
-
-def validate_configuration():
-
-    if not CLIENT_ID:
-        raise RuntimeError(
-            "CLIENT_ID is missing. Check your .env file."
-        )
-
-    if not CLIENT_SECRET:
-        raise RuntimeError(
-            "CLIENT_SECRET is missing. Check your .env file."
-        )
-
-    if not os.path.isfile(CLIENT_CERT):
-        raise RuntimeError(
-            f"Client certificate not found: {CLIENT_CERT}"
-        )
-
-    if not os.path.isfile(CLIENT_KEY):
-        raise RuntimeError(
-            f"Client private key not found: {CLIENT_KEY}"
-        )
-
-
-# ============================================================
-# SSL SETTING
-# ============================================================
-
-def get_verify_setting():
-
-    if CA_BUNDLE:
-        return CA_BUNDLE
-
-    return VERIFY_SSL
-
-
-# ============================================================
-# HTTP SESSION
-# ============================================================
-
-def create_session() -> requests.Session:
-
-    session = requests.Session()
-
-    retry_strategy = Retry(
-        total=3,
-        connect=3,
-        read=3,
-        status=3,
-        status_forcelist=(429, 500, 502, 503, 504),
-        allowed_methods=frozenset(["GET"]),
-        backoff_factor=1,
-        respect_retry_after_header=True,
+    response = requests.post(
+        TOKEN_URL,
+        auth=HTTPBasicAuth(CLIENT_ID, CLIENT_SECRET),
+        cert=(CERT_FILE, KEY_FILE),
+        headers=headers,
+        timeout=TIMEOUT
     )
 
-    adapter = HTTPAdapter(
-        max_retries=retry_strategy,
-        pool_connections=10,
-        pool_maxsize=10,
-    )
-
-    session.mount("https://", adapter)
-
-    return session
-
-
-# ============================================================
-# SAFE JWT DIAGNOSTIC
-# ============================================================
-
-def decode_jwt_claims(token: str) -> Optional[Dict[str, Any]]:
-    """
-    Decode JWT payload only for diagnostics.
-
-    IMPORTANT:
-    This does NOT verify the signature.
-    It is only used to inspect claims such as:
-    iss, aud, scope, exp.
-    """
-
-    parts = token.split(".")
-
-    if len(parts) != 3:
-        return None
-
-    try:
-        payload = parts[1]
-
-        # Add missing base64 padding
-        payload += "=" * (-len(payload) % 4)
-
-        decoded = base64.urlsafe_b64decode(payload)
-
-        return json.loads(decoded.decode("utf-8"))
-
-    except Exception:
-        return None
-
-
-def print_token_diagnostics(token: str):
-
-    claims = decode_jwt_claims(token)
-
-    if claims is None:
-        logger.info(
-            "Access token is not a JWT (or could not be decoded locally)."
-        )
-        return
-
-    logger.info("----- TOKEN DIAGNOSTICS -----")
-
-    logger.info("Issuer (iss): %s", claims.get("iss"))
-    logger.info("Audience (aud): %s", claims.get("aud"))
-    logger.info("Scope (scope): %s", claims.get("scope"))
-    logger.info("Client ID (client_id): %s", claims.get("client_id"))
-    logger.info("Token type (typ): %s", claims.get("typ"))
-    logger.info("Expires (exp): %s", claims.get("exp"))
-
-    logger.info("-----------------------------")
-
-
-# ============================================================
-# GET ACCESS TOKEN
-# ============================================================
-
-def get_access_token(session: requests.Session) -> str:
-
-    logger.info("Requesting OAuth access token...")
-
-    try:
-
-        # This follows your original curl structure:
-        #
-        # POST /oauth2/v1/token?grant_type=client_credentials
-        #
-        # with client certificate + private key
-        # and HTTP Basic authentication.
-
-        response = session.post(
-            TOKEN_URL,
-            params={
-                "grant_type": "client_credentials"
-            },
-            cert=(
-                CLIENT_CERT,
-                CLIENT_KEY
-            ),
-            auth=(
-                CLIENT_ID,
-                CLIENT_SECRET
-            ),
-            headers={
-                "Content-Length": "0"
-            },
-            data=b"",
-            verify=get_verify_setting(),
-            timeout=(
-                CONNECT_TIMEOUT,
-                READ_TIMEOUT
-            ),
-        )
-
-    except requests.exceptions.SSLError as exc:
-
-        raise RuntimeError(
-            f"SSL/mTLS error while obtaining token: {exc}"
-        ) from exc
-
-    except requests.exceptions.Timeout as exc:
-
-        raise RuntimeError(
-            "OAuth token request timed out."
-        ) from exc
-
-    except requests.exceptions.RequestException as exc:
-
-        raise RuntimeError(
-            f"OAuth token request failed: {exc}"
-        ) from exc
-
-
-    logger.info(
-        "OAuth token response: HTTP %s",
-        response.status_code
-    )
-
+    print("Token API Status:", response.status_code)
 
     if response.status_code != 200:
+        print("Token API failed")
+        print("Response:", response.text)
+        response.raise_for_status()
 
-        raise RuntimeError(
-            "OAuth token request failed. "
-            f"HTTP {response.status_code}: "
-            f"{response.text[:500]}"
-        )
-
-
-    try:
-
-        token_data = response.json()
-
-    except ValueError as exc:
-
-        raise RuntimeError(
-            "OAuth server returned a non-JSON response."
-        ) from exc
-
+    token_data = response.json()
 
     access_token = token_data.get("access_token")
 
     if not access_token:
-
         raise RuntimeError(
-            "OAuth response does not contain access_token."
+            "Access token was not found in token API response"
         )
-
-
-    access_token = access_token.strip()
-
-
-    # Safe logging — NEVER print the actual token.
-    logger.info(
-        "Token type: %s",
-        token_data.get("token_type")
-    )
-
-    logger.info(
-        "Expires in: %s seconds",
-        token_data.get("expires_in")
-    )
-
-    logger.info(
-        "Scope returned by OAuth server: %s",
-        token_data.get("scope")
-    )
-
-    logger.info(
-        "OAuth token obtained successfully."
-    )
-
-
-    # Inspect claims if token is JWT.
-    print_token_diagnostics(access_token)
-
 
     return access_token
 
 
 # ============================================================
-# HEALTH CHECK
+# STEP 2: CALL HEALTH CHECK API
 # ============================================================
 
-def check_health(
-    session: requests.Session,
-    access_token: str
-) -> Dict[str, Any]:
-
-    logger.info("Calling health endpoint...")
+def health_check(access_token):
 
     headers = {
         "Authorization": f"Bearer {access_token}",
-        "Accept": "*/*",
-        "x-version": "gamma",
+        "Accept": "*/*;version=gamma"
     }
 
+    response = requests.get(
+        HEALTH_URL,
+        headers=headers,
+        cert=(CERT_FILE, KEY_FILE),
+        timeout=TIMEOUT
+    )
 
-    start_time = time.perf_counter()
+    print("Health Check Status:", response.status_code)
 
+    if response.status_code == 200:
+        print("Health Check SUCCESS - 200 OK")
+        return True
 
-    try:
+    print("Health Check FAILED")
+    print("Response:", response.text)
 
-        response = session.get(
-            HEALTH_URL,
-            cert=(
-                CLIENT_CERT,
-                CLIENT_KEY
-            ),
-            headers=headers,
-            verify=get_verify_setting(),
-            timeout=(
-                CONNECT_TIMEOUT,
-                READ_TIMEOUT
-            ),
-        )
-
-
-        response_time_ms = round(
-            (time.perf_counter() - start_time) * 1000,
-            2
-        )
-
-
-        logger.info(
-            "Health API response: HTTP %s",
-            response.status_code
-        )
-
-        logger.info(
-            "Response time: %s ms",
-            response_time_ms
-        )
-
-
-        # ====================================================
-        # SUCCESS
-        # ====================================================
-
-        if response.status_code == 200:
-
-            logger.info(
-                "API HEALTH STATUS: UP"
-            )
-
-            return {
-                "healthy": True,
-                "status": "UP",
-                "status_code": 200,
-                "response_time_ms": response_time_ms,
-                "error": None,
-            }
-
-
-        # ====================================================
-        # AUTHENTICATION FAILURE
-        # ====================================================
-
-        if response.status_code == 401:
-
-            logger.error(
-                "API HEALTH STATUS: DOWN"
-            )
-
-            logger.error(
-                "Health API rejected the access token."
-            )
-
-            # Print response body because this is the useful
-            # diagnostic information — but NOT the token.
-            logger.error(
-                "Server response: %s",
-                response.text[:1000]
-            )
-
-            return {
-                "healthy": False,
-                "status": "DOWN",
-                "status_code": 401,
-                "response_time_ms": response_time_ms,
-                "error": (
-                    "Health API rejected the access token "
-                    "(HTTP 401)."
-                ),
-            }
-
-
-        # ====================================================
-        # OTHER HTTP ERROR
-        # ====================================================
-
-        logger.error(
-            "API HEALTH STATUS: DOWN"
-        )
-
-        logger.error(
-            "Server response: %s",
-            response.text[:1000]
-        )
-
-        return {
-            "healthy": False,
-            "status": "DOWN",
-            "status_code": response.status_code,
-            "response_time_ms": response_time_ms,
-            "error": response.text[:1000],
-        }
-
-
-    except requests.exceptions.SSLError as exc:
-
-        return {
-            "healthy": False,
-            "status": "DOWN",
-            "status_code": None,
-            "response_time_ms": None,
-            "error": f"SSL/mTLS error: {exc}",
-        }
-
-
-    except requests.exceptions.Timeout:
-
-        return {
-            "healthy": False,
-            "status": "DOWN",
-            "status_code": None,
-            "response_time_ms": None,
-            "error": "Health API request timed out.",
-        }
-
-
-    except requests.exceptions.ConnectionError as exc:
-
-        return {
-            "healthy": False,
-            "status": "DOWN",
-            "status_code": None,
-            "response_time_ms": None,
-            "error": f"Connection error: {exc}",
-        }
-
-
-    except requests.exceptions.RequestException as exc:
-
-        return {
-            "healthy": False,
-            "status": "DOWN",
-            "status_code": None,
-            "response_time_ms": None,
-            "error": f"HTTP request error: {exc}",
-        }
+    return False
 
 
 # ============================================================
@@ -497,92 +101,34 @@ def check_health(
 
 def main():
 
-    logger.info("==========================================")
-    logger.info("Starting API Health Check")
-    logger.info("==========================================")
-
     try:
+        # Step 1
+        access_token = get_access_token()
 
-        validate_configuration()
+        print("Access token received successfully")
 
-        logger.info(
-            "Client certificate: %s",
-            CLIENT_CERT
-        )
+        # Step 2
+        success = health_check(access_token)
 
-        logger.info(
-            "Client key: %s",
-            CLIENT_KEY
-        )
+        if success:
+            print("FINAL RESULT: 200 OK")
+        else:
+            print("FINAL RESULT: Health check failed")
 
-        logger.info(
-            "Token URL: %s",
-            TOKEN_URL
-        )
+    except requests.exceptions.SSLError as e:
+        print("SSL/mTLS certificate error:")
+        print(e)
 
-        logger.info(
-            "Health URL: %s",
-            HEALTH_URL
-        )
+    except requests.exceptions.Timeout:
+        print("Request timed out")
 
+    except requests.exceptions.RequestException as e:
+        print("Request failed:")
+        print(e)
 
-        session = create_session()
-
-
-        # ----------------------------------------------------
-        # STEP 1: GET TOKEN
-        # ----------------------------------------------------
-
-        access_token = get_access_token(session)
-
-
-        # ----------------------------------------------------
-        # STEP 2: CALL HEALTH API
-        # ----------------------------------------------------
-
-        result = check_health(
-            session,
-            access_token
-        )
-
-
-        # ----------------------------------------------------
-        # FINAL RESULT
-        # ----------------------------------------------------
-
-        logger.info("==========================================")
-        logger.info(
-            "FINAL STATUS: %s",
-            result["status"]
-        )
-
-        logger.info(
-            "HTTP STATUS: %s",
-            result["status_code"]
-        )
-
-        logger.info("==========================================")
-
-
-        # Useful for Jenkins / CI/CD:
-        #
-        # 0 = UP
-        # 1 = DOWN
-
-        if result["healthy"]:
-            sys.exit(0)
-
-        sys.exit(1)
-
-
-    except Exception as exc:
-
-        logger.error(
-            "Health check failed: %s",
-            exc
-        )
-
-        sys.exit(1)
+    except Exception as e:
+        print("Unexpected error:")
+        print(e)
 
 
 if __name__ == "__main__":
