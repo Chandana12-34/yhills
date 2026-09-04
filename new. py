@@ -1,23 +1,23 @@
 import os
 import requests
+import urllib3
 from requests.auth import HTTPBasicAuth
+
+# Disable warning because we are currently using verify=False
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 # ============================================================
 # CONFIGURATION
 # ============================================================
 
+BASE_URL = "https://api-staging-mtls.staging.echonet"
+
 TOKEN_URL = (
-    "https://api-staging-mtls.staging.echonet"
+    BASE_URL +
     "/oauth2/v1/token?grant_type=client_credentials"
 )
 
-HEALTH_URL = (
-    "https://api-staging-mtls.staging.echonet"
-    "/ce-third-parties/v2/entities?crdsCode=CLAUPAR"
-)
-
-# Store these as environment variables instead of hardcoding
 CLIENT_ID = os.getenv("CLIENT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
 
@@ -28,7 +28,206 @@ TIMEOUT = 30
 
 
 # ============================================================
-# STEP 1: GET ACCESS TOKEN
+# ENDPOINTS TO MONITOR
+# ============================================================
+
+ENDPOINTS = [
+
+    # ---------------- BETA ----------------
+
+    {
+        "name": "Entities",
+        "url": BASE_URL + "/cep-third-parties/v2/entities?ptyId=1070",
+        "version": "beta"
+    },
+
+    {
+        "name": "Client Coverage",
+        "url": BASE_URL + "/cep-third-parties/v2/entities/client-coverage?ptyId=1070",
+        "version": "beta"
+    },
+
+    {
+        "name": "Credit Risk",
+        "url": BASE_URL + "/cep-third-parties/v2/entities/credit-risk?ptyId=1070",
+        "version": "beta"
+    },
+
+    {
+        "name": "Financial Information",
+        "url": BASE_URL + "/cep-third-parties/v2/entities/financial-information?ptyId=1070",
+        "version": "beta"
+    },
+
+    {
+        "name": "KYC",
+        "url": BASE_URL + "/cep-third-parties/v2/entities/kyc?ptyId=6878",
+        "version": "beta"
+    },
+
+    {
+        "name": "KYC Cases",
+        "url": BASE_URL + "/cep-third-parties/v2/entities/kyc/cases?ptyId=1070",
+        "version": "beta"
+    },
+
+    {
+        "name": "Radix Data",
+        "url": BASE_URL + "/cep-third-parties/v2/entities/radix-data?ptyId=1070",
+        "version": "beta"
+    },
+
+    {
+        "name": "Tax",
+        "url": BASE_URL + "/cep-third-parties/v2/entities/tax?ptyId=1070",
+        "version": "beta"
+    },
+
+    {
+        "name": "Change Notifications",
+        "url": BASE_URL + "/cep-third-parties/v2/entities/change-notifications?crdsCode=BNPAPAR",
+        "version": "beta"
+    },
+
+    {
+        "name": "Business Groups",
+        "url": BASE_URL + "/cep-third-parties/v2/business-groups?businessGroupCode=132",
+        "version": "beta"
+    },
+
+    {
+        "name": "Business Group Change Notifications",
+        "url": BASE_URL + "/cep-third-parties/v2/business-groups/change-notifications?businessGroupCode=60120",
+        "version": "beta"
+    },
+
+    {
+        "name": "Individuals",
+        "url": BASE_URL + "/cep-third-parties/v2/individuals/1205",
+        "version": "beta"
+    },
+
+    {
+        "name": "KYC Associations",
+        "url": BASE_URL + "/cep-third-parties/v2/entities/kycId=171355/associations",
+        "version": "beta"
+    },
+
+    {
+        "name": "KYC Signatories",
+        "url": BASE_URL + "/cep-third-parties/v2/entities/kycId=103403/signatories",
+        "version": "beta"
+    },
+
+
+    # ---------------- GAMMA ----------------
+
+    {
+        "name": "Entities",
+        "url": BASE_URL + "/cep-third-parties/v2/entities?ptyId=1070",
+        "version": "gamma"
+    },
+
+    {
+        "name": "Client Coverage",
+        "url": BASE_URL + "/cep-third-parties/v2/entities/client-coverage?ptyId=1070",
+        "version": "gamma"
+    },
+
+    {
+        "name": "Credit Risk",
+        "url": BASE_URL + "/cep-third-parties/v2/entities/credit-risk?ptyId=1070",
+        "version": "gamma"
+    },
+
+    {
+        "name": "Financial Information",
+        "url": BASE_URL + "/cep-third-parties/v2/entities/financial-information?ptyId=1070",
+        "version": "gamma"
+    },
+
+    {
+        "name": "KYC",
+        "url": BASE_URL + "/cep-third-parties/v2/entities/kyc?ptyId=6878",
+        "version": "gamma"
+    },
+
+    {
+        "name": "KYC Cases",
+        "url": BASE_URL + "/cep-third-parties/v2/entities/kyc/cases?ptyId=1070",
+        "version": "gamma"
+    },
+
+    {
+        "name": "Radix Data",
+        "url": BASE_URL + "/cep-third-parties/v2/entities/radix-data?ptyId=1070",
+        "version": "gamma"
+    },
+
+    {
+        "name": "Tax",
+        "url": BASE_URL + "/cep-third-parties/v2/entities/tax?ptyId=1070",
+        "version": "gamma"
+    },
+
+    {
+        "name": "Change Notifications",
+        "url": BASE_URL + "/cep-third-parties/v2/entities/change-notifications?crdsCode=BNPAPAR",
+        "version": "gamma"
+    },
+
+    {
+        "name": "Business Groups",
+        "url": BASE_URL + "/cep-third-parties/v2/business-groups?businessGroupCode=132",
+        "version": "gamma"
+    },
+
+    {
+        "name": "Business Group Change Notifications",
+        "url": BASE_URL + "/cep-third-parties/v2/business-groups/change-notifications?businessGroupCode=60120",
+        "version": "gamma"
+    },
+
+    {
+        "name": "Individuals",
+        "url": BASE_URL + "/cep-third-parties/v2/individuals/1205",
+        "version": "gamma"
+    },
+
+    {
+        "name": "KYC Associations",
+        "url": BASE_URL + "/cep-third-parties/v2/entities/kycId=171355/associations",
+        "version": "gamma"
+    },
+
+    {
+        "name": "KYC Signatories",
+        "url": BASE_URL + "/cep-third-parties/v2/entities/kycId=103403/signatories",
+        "version": "gamma"
+    },
+
+    {
+        "name": "Batch Export",
+        "url": BASE_URL + "/cep-third-parties/v2/batch-export?type=FinanceDE",
+        "version": "gamma"
+    },
+
+    {
+        "name": "Non Clients",
+        "url": BASE_URL + "/cep-third-parties/v2/non-clients?nonClientId=2876",
+        "version": "gamma"
+    },
+
+    {
+        "name": "Tax Rates",
+        "url": BASE_URL + "/cep-third-parties/v2/entities/tax/rates?crdsCode=TCAUGCM",
+        "version": "gamma"
+    }
+]
+
+
+# ============================================================
+# STEP 1 - GET ACCESS TOKEN
 # ============================================================
 
 def get_access_token():
@@ -43,14 +242,15 @@ def get_access_token():
         auth=HTTPBasicAuth(CLIENT_ID, CLIENT_SECRET),
         cert=(CERT_FILE, KEY_FILE),
         headers=headers,
-        timeout=TIMEOUT
+        timeout=TIMEOUT,
+        verify=False
     )
 
-    print("Token API Status:", response.status_code)
+    print("\nToken API Status:", response.status_code)
 
     if response.status_code != 200:
-        print("Token API failed")
-        print("Response:", response.text)
+        print("Token API FAILED")
+        print(response.text)
         response.raise_for_status()
 
     token_data = response.json()
@@ -58,41 +258,80 @@ def get_access_token():
     access_token = token_data.get("access_token")
 
     if not access_token:
-        raise RuntimeError(
-            "Access token was not found in token API response"
-        )
+        raise RuntimeError("Access token not found")
+
+    print("Access token received successfully")
 
     return access_token
 
 
 # ============================================================
-# STEP 2: CALL HEALTH CHECK API
+# STEP 2 - MONITOR ALL ENDPOINTS
 # ============================================================
 
-def health_check(access_token):
+def monitor_endpoints(access_token):
 
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Accept": "*/*;version=gamma"
-    }
+    results = []
 
-    response = requests.get(
-        HEALTH_URL,
-        headers=headers,
-        cert=(CERT_FILE, KEY_FILE),
-        timeout=TIMEOUT
-    )
+    print("\n" + "=" * 80)
+    print("STARTING ENDPOINT HEALTH CHECK")
+    print("=" * 80)
 
-    print("Health Check Status:", response.status_code)
+    for endpoint in ENDPOINTS:
 
-    if response.status_code == 200:
-        print("Health Check SUCCESS - 200 OK")
-        return True
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Accept": f"*/*;version={endpoint['version']}"
+        }
 
-    print("Health Check FAILED")
-    print("Response:", response.text)
+        try:
 
-    return False
+            response = requests.get(
+                endpoint["url"],
+                headers=headers,
+                cert=(CERT_FILE, KEY_FILE),
+                timeout=TIMEOUT,
+                verify=False
+            )
+
+            status = response.status_code
+
+            if status == 200:
+                health = "UP"
+            else:
+                health = "DOWN"
+
+            results.append({
+                "name": endpoint["name"],
+                "version": endpoint["version"],
+                "status": status,
+                "health": health
+            })
+
+            print("\n----------------------------------------")
+            print("Endpoint :", endpoint["name"])
+            print("Version  :", endpoint["version"])
+            print("Status   :", status)
+            print("Health   :", health)
+            print("Response :", response.text[:500])
+
+        except requests.exceptions.RequestException as e:
+
+            results.append({
+                "name": endpoint["name"],
+                "version": endpoint["version"],
+                "status": "ERROR",
+                "health": "DOWN"
+            })
+
+            print("\n----------------------------------------")
+            print("Endpoint :", endpoint["name"])
+            print("Version  :", endpoint["version"])
+            print("Status   : ERROR")
+            print("Health   : DOWN")
+            print("Error    :", e)
+
+    return results
 
 
 # ============================================================
@@ -102,32 +341,32 @@ def health_check(access_token):
 def main():
 
     try:
-        # Step 1
+
+        # Get token only ONCE
         access_token = get_access_token()
 
-        print("Access token received successfully")
+        # Use same token for every endpoint
+        results = monitor_endpoints(access_token)
 
-        # Step 2
-        success = health_check(access_token)
+        print("\n")
+        print("=" * 80)
+        print("FINAL HEALTH CHECK SUMMARY")
+        print("=" * 80)
 
-        if success:
-            print("FINAL RESULT: 200 OK")
-        else:
-            print("FINAL RESULT: Health check failed")
+        for result in results:
 
-    except requests.exceptions.SSLError as e:
-        print("SSL/mTLS certificate error:")
-        print(e)
+            print(
+                f"{result['version'].upper():6} | "
+                f"{result['name']:<35} | "
+                f"{result['status']} | "
+                f"{result['health']}"
+            )
 
-    except requests.exceptions.Timeout:
-        print("Request timed out")
-
-    except requests.exceptions.RequestException as e:
-        print("Request failed:")
-        print(e)
+        print("=" * 80)
 
     except Exception as e:
-        print("Unexpected error:")
+
+        print("\nHealth check failed:")
         print(e)
 
 
