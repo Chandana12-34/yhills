@@ -1,37 +1,85 @@
-def render_tpapi_details():
-    data = st.session_state.health_data.get("TPAPI")
+def fetch_monitor_results(url):
 
-    if not data:
-        st.warning("TPAPI health data not available.")
-        return
+    driver = None
 
-    components = data.get("components", [])
+    try:
+        # Create Edge driver
+        options = Options()
+        options.add_argument("--start-maximized")
+        options.page_load_strategy = "eager"
 
-    beta = [x for x in components if x.get("version") == "BETA"]
-    gamma = [x for x in components if x.get("version") == "GAMMA"]
+        service = Service(EDGE_DRIVER_PATH)
 
-    st.markdown("## TPAPI Health Check")
+        driver = webdriver.Edge(
+            service=service,
+            options=options
+        )
 
-    col1, col2 = st.columns(2)
+        driver.set_page_load_timeout(10)
 
-    with col1:
-        st.markdown("### BETA")
+        # Open monitor page
+        try:
+            driver.get(url)
+        except Exception as e:
+            print("Page load timed out, continuing to scrape:", e)
 
-        for item in beta:
-            icon = "🟢" if item.get("status") == "UP" else "🔴"
+        # Wait for the monitor table
+        table = WebDriverWait(
+            driver,
+            120
+        ).until(
+            EC.presence_of_element_located(
+                (By.ID, "gvTestResults")
+            )
+        )
 
-            st.markdown(
-                f"**{icon} {item.get('name')}** — "
-                f"{item.get('status_code')} {item.get('status')}"
+        # Get all data rows
+        rows = table.find_elements(
+            By.XPATH,
+            ".//tbody/tr[position() > 1]"
+        )
+
+        results = []
+
+        for row in rows:
+
+            cells = row.find_elements(
+                By.TAG_NAME,
+                "td"
             )
 
-    with col2:
-        st.markdown("### GAMMA")
+            if len(cells) >= 5:
 
-        for item in gamma:
-            icon = "🟢" if item.get("status") == "UP" else "🔴"
+                title = cells[0].text.strip()
+                status = cells[4].text.strip()
 
-            st.markdown(
-                f"**{icon} {item.get('name')}** — "
-                f"{item.get('status_code')} {item.get('status')}"
-            )
+                # Convert Selenium Pass/Fail
+                # into dashboard UP/DOWN
+                if status.lower() == "pass":
+                    health_status = "UP"
+                else:
+                    health_status = "DOWN"
+
+                results.append({
+                    "name": title,
+                    "status": health_status
+                })
+
+        print("SELENIUM RESULTS:", results)
+
+        return results
+
+    except Exception as e:
+
+        print("SELENIUM ERROR:", e)
+
+        return [{
+            "name": "Monitor",
+            "status": "DOWN",
+            "error": str(e)
+        }]
+
+    finally:
+
+        if driver:
+            driver.quit()
