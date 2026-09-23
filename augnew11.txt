@@ -1,38 +1,158 @@
-CLASSIFICATION HIERARCHY RULES:
+from langflow.custom import Component
+from langflow.io import MessageTextInput, Output
+from langflow.schema import Data
 
-The classification follows this hierarchy:
 
-Issue Type → Category → Sub Category
+class PAMMockTool(Component):
 
-Use the taxonomy according to the following rules:
+    display_name = "PAM Mock Tool"
+    description = "Mock PAM service used for PAM golden scenarios."
+    icon = "shield"
+    name = "PAMMockTool"
 
-1. If Issue Type is "Application Support":
-   - Category MUST be either "Functional Support" or "Technical Support".
-   - If Category is "Functional Support", select the appropriate Sub Category from the Functional Support taxonomy.
-   - If Category is "Technical Support", select the appropriate Sub Category from the Technical Support taxonomy.
+    inputs = [
+        MessageTextInput(
+            name="request",
+            display_name="PAM Request",
+            info="Request from the PAM agent.",
+            tool_mode=True,
+        ),
+    ]
 
-2. If Issue Type is "Application Issue":
-   - Select the appropriate Category from the Application Issue Categories.
-   - The selected Category is also the applicable Sub Category for Application Issue tickets unless a more specific sub-category is explicitly defined in the taxonomy.
-   - Examples include:
-     "Workflow Exception"
-     "KYC Escalation Form"
-     "Screening Issue"
-     "Performance and Slowness"
-     "User Interface"
+    outputs = [
+        Output(
+            display_name="PAM Result",
+            name="pam_result",
+            method="run_pam",
+        ),
+    ]
 
-3. Do NOT independently choose Category and Sub Category.
+    def run_pam(self) -> Data:
 
-4. Category and Sub Category must belong to the selected Issue Type.
+        request = self.request.lower()
 
-5. Never return "Other" for both Category and Sub Category when the ticket contains enough information to select a specific classification.
+        # ------------------------------------------------
+        # MOCK ACCOUNT DATA
+        # ------------------------------------------------
 
-6. "Other" should only be used when the ticket genuinely cannot be mapped to any specific allowed classification.
+        accounts = {
+            "acc-1001": {
+                "account_id": "ACC-1001",
+                "owner": "Rahul",
+                "environment": "PROD",
+                "status": "ACTIVE",
+                "permissions": [
+                    "READ",
+                    "REPORT_VIEW"
+                ],
+                "recertification": "CURRENT",
+                "owner_tagged": True
+            },
 
-7. Do not invent, rename, or create classification values.
+            "acc-1002": {
+                "account_id": "ACC-1002",
+                "owner": "Priya",
+                "environment": "UAT",
+                "status": "ACTIVE",
+                "permissions": [
+                    "READ",
+                    "WRITE"
+                ],
+                "recertification": "PENDING",
+                "owner_tagged": False
+            }
+        }
 
-8. Prefer the most specific classification supported by the ticket details.
+        # ------------------------------------------------
+        # SERVICE-DOWN SIMULATION
+        # ------------------------------------------------
 
-9. Use the ticket's Short Description, Description and Comments together when determining the classification.
+        if "service down" in request or "vault unavailable" in request:
+            return Data(
+                value={
+                    "status": "SERVICE_UNAVAILABLE",
+                    "message": "PAM Vault service is currently unavailable."
+                }
+            )
 
-10. The classification must represent the actual issue described in the ticket, not merely keywords appearing in the text.
+        # ------------------------------------------------
+        # ACCOUNT SEARCH
+        # ------------------------------------------------
+
+        for account_id, account in accounts.items():
+
+            if account_id in request:
+
+                # Permission request
+                if "permission" in request:
+
+                    return Data(
+                        value={
+                            "status": "SUCCESS",
+                            "operation": "PERMISSION_REVIEW",
+                            "account_id": account["account_id"],
+                            "owner": account["owner"],
+                            "environment": account["environment"],
+                            "permissions": account["permissions"],
+                            "account_status": account["status"]
+                        }
+                    )
+
+                # Recertification request
+                if "recert" in request:
+
+                    if not account["owner_tagged"]:
+
+                        return Data(
+                            value={
+                                "status": "MISSING_OWNER",
+                                "account_id": account["account_id"],
+                                "recertification": account["recertification"],
+                                "message": "No owner is assigned to this recertification item."
+                            }
+                        )
+
+                    return Data(
+                        value={
+                            "status": "SUCCESS",
+                            "operation": "RECERTIFICATION_STATUS",
+                            "account_id": account["account_id"],
+                            "recertification": account["recertification"],
+                            "owner": account["owner"]
+                        }
+                    )
+
+                # Credential request
+                if "credential" in request or "password" in request:
+
+                    return Data(
+                        value={
+                            "status": "APPROVAL_REQUIRED",
+                            "account_id": account["account_id"],
+                            "message": "Privileged credential retrieval requires explicit approval.",
+                            "credential": None
+                        }
+                    )
+
+                # Normal account search
+                return Data(
+                    value={
+                        "status": "SUCCESS",
+                        "operation": "ACCOUNT_SEARCH",
+                        "account_id": account["account_id"],
+                        "owner": account["owner"],
+                        "environment": account["environment"],
+                        "status": account["status"]
+                    }
+                )
+
+        # ------------------------------------------------
+        # UNKNOWN ACCOUNT
+        # ------------------------------------------------
+
+        return Data(
+            value={
+                "status": "NOT_FOUND",
+                "message": "No matching PAM account was found."
+            }
+        )
