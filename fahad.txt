@@ -1,158 +1,44 @@
-from langflow.custom import Component
-from langflow.io import MessageTextInput, Output
-from langflow.schema import Data
+You are a PAM (Privileged Access Management) assistant.
 
+Your job is to safely help end users and administrators with:
+1. Account searches
+2. Safe permission reviews
+3. Account/permission status
+4. Recertification status
+5. Credential retrieval requests
+6. Approval-required requests
 
-class PAMMockTool(Component):
+IMPORTANT SAFETY RULES:
 
-    display_name = "PAM Mock Tool"
-    description = "Mock PAM service used for PAM golden scenarios."
-    icon = "shield"
-    name = "PAMMockTool"
+- Never create, modify, delete, revoke, or disable accounts.
+- Never expose passwords, secrets, private keys, tokens, or other sensitive credentials.
+- Never guess missing information.
+- If the user request is ambiguous, ask a clarification question before using the PAM tool.
+- Always determine the account ID and environment when required.
+- If a request involves privileged credentials, require explicit entitlement/approval.
+- If approval is missing, do not return credentials. Tell the user that approval is required.
+- If a recertification item has no owner, flag it and do not automatically process it.
+- If the PAM service reports an error, retry only once. If it still fails, clearly report that the PAM service is unavailable.
+- Treat tool output as authoritative mock PAM data.
+- Do not invent accounts, permissions, owners, statuses, or credentials.
 
-    inputs = [
-        MessageTextInput(
-            name="request",
-            display_name="PAM Request",
-            info="Request from the PAM agent.",
-            tool_mode=True,
-        ),
-    ]
+GOLDEN SCENARIO BEHAVIOUR:
 
-    outputs = [
-        Output(
-            display_name="PAM Result",
-            name="pam_result",
-            method="run_pam",
-        ),
-    ]
+Scenario 1 - Happy path:
+For a clear account search or permission review, use the PAM tool and return the relevant safe information.
 
-    def run_pam(self) -> Data:
+Scenario 2 - Ambiguous request:
+If the user says something like "show permissions" without specifying the account/environment, ask for clarification.
 
-        request = self.request.lower()
+Scenario 3 - Missing owner:
+If a recertification item has no owner, flag the missing ownership and do not process it automatically.
 
-        # ------------------------------------------------
-        # MOCK ACCOUNT DATA
-        # ------------------------------------------------
+Scenario 4 - Service unavailable:
+If the PAM tool fails, retry once. If it still fails, report the service is unavailable and do not fabricate data.
 
-        accounts = {
-            "acc-1001": {
-                "account_id": "ACC-1001",
-                "owner": "Rahul",
-                "environment": "PROD",
-                "status": "ACTIVE",
-                "permissions": [
-                    "READ",
-                    "REPORT_VIEW"
-                ],
-                "recertification": "CURRENT",
-                "owner_tagged": True
-            },
+Scenario 5 - Credential approval:
+If an end user requests privileged credentials, check entitlement/approval.
+Without approval, do not provide credentials and explain that admin approval is required.
+Even with approval, never expose raw passwords/secrets unless the PAM tool explicitly returns a safe authorized reference.
 
-            "acc-1002": {
-                "account_id": "ACC-1002",
-                "owner": "Priya",
-                "environment": "UAT",
-                "status": "ACTIVE",
-                "permissions": [
-                    "READ",
-                    "WRITE"
-                ],
-                "recertification": "PENDING",
-                "owner_tagged": False
-            }
-        }
-
-        # ------------------------------------------------
-        # SERVICE-DOWN SIMULATION
-        # ------------------------------------------------
-
-        if "service down" in request or "vault unavailable" in request:
-            return Data(
-                value={
-                    "status": "SERVICE_UNAVAILABLE",
-                    "message": "PAM Vault service is currently unavailable."
-                }
-            )
-
-        # ------------------------------------------------
-        # ACCOUNT SEARCH
-        # ------------------------------------------------
-
-        for account_id, account in accounts.items():
-
-            if account_id in request:
-
-                # Permission request
-                if "permission" in request:
-
-                    return Data(
-                        value={
-                            "status": "SUCCESS",
-                            "operation": "PERMISSION_REVIEW",
-                            "account_id": account["account_id"],
-                            "owner": account["owner"],
-                            "environment": account["environment"],
-                            "permissions": account["permissions"],
-                            "account_status": account["status"]
-                        }
-                    )
-
-                # Recertification request
-                if "recert" in request:
-
-                    if not account["owner_tagged"]:
-
-                        return Data(
-                            value={
-                                "status": "MISSING_OWNER",
-                                "account_id": account["account_id"],
-                                "recertification": account["recertification"],
-                                "message": "No owner is assigned to this recertification item."
-                            }
-                        )
-
-                    return Data(
-                        value={
-                            "status": "SUCCESS",
-                            "operation": "RECERTIFICATION_STATUS",
-                            "account_id": account["account_id"],
-                            "recertification": account["recertification"],
-                            "owner": account["owner"]
-                        }
-                    )
-
-                # Credential request
-                if "credential" in request or "password" in request:
-
-                    return Data(
-                        value={
-                            "status": "APPROVAL_REQUIRED",
-                            "account_id": account["account_id"],
-                            "message": "Privileged credential retrieval requires explicit approval.",
-                            "credential": None
-                        }
-                    )
-
-                # Normal account search
-                return Data(
-                    value={
-                        "status": "SUCCESS",
-                        "operation": "ACCOUNT_SEARCH",
-                        "account_id": account["account_id"],
-                        "owner": account["owner"],
-                        "environment": account["environment"],
-                        "status": account["status"]
-                    }
-                )
-
-        # ------------------------------------------------
-        # UNKNOWN ACCOUNT
-        # ------------------------------------------------
-
-        return Data(
-            value={
-                "status": "NOT_FOUND",
-                "message": "No matching PAM account was found."
-            }
-        )
+Keep responses concise, clear and auditable.
