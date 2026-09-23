@@ -6,7 +6,7 @@ from langflow.schema import Data
 class PAMMockTool(Component):
 
     display_name = "PAM Mock Tool"
-    description = "Mock PAM service used for PAM golden scenarios."
+    description = "Mock PAM service for PAM golden scenarios."
     icon = "shield"
     name = "PAMMockTool"
 
@@ -14,7 +14,7 @@ class PAMMockTool(Component):
         MessageTextInput(
             name="request",
             display_name="PAM Request",
-            info="Request from the PAM agent.",
+            info="Request received from the PAM agent.",
             tool_mode=True,
         ),
     ]
@@ -29,23 +29,20 @@ class PAMMockTool(Component):
 
     def run_pam(self) -> Data:
 
-        # Make sure the input exists
         request = (self.request or "").lower().strip()
 
-        # ------------------------------------------------
-        # MOCK ACCOUNT DATA
-        # ------------------------------------------------
+        # ============================================================
+        # MOCK PAM DATABASE
+        # ============================================================
 
         accounts = {
+
             "acc-1001": {
                 "account_id": "ACC-1001",
                 "owner": "Rahul",
                 "environment": "PROD",
                 "status": "ACTIVE",
-                "permissions": [
-                    "READ",
-                    "REPORT_VIEW"
-                ],
+                "permissions": ["READ", "REPORT_VIEW"],
                 "recertification": "CURRENT",
                 "owner_tagged": True
             },
@@ -55,169 +52,169 @@ class PAMMockTool(Component):
                 "owner": "Priya",
                 "environment": "UAT",
                 "status": "ACTIVE",
-                "permissions": [
-                    "READ",
-                    "WRITE"
-                ],
+                "permissions": ["READ", "WRITE"],
                 "recertification": "PENDING",
                 "owner_tagged": False
+            },
+
+            "acc-1003": {
+                "account_id": "ACC-1003",
+                "owner": "Amit",
+                "environment": "DEV",
+                "status": "DISABLED",
+                "permissions": ["READ"],
+                "recertification": "EXPIRED",
+                "owner_tagged": True
+            },
+
+            "acc-1004": {
+                "account_id": "ACC-1004",
+                "owner": "Sneha",
+                "environment": "PROD",
+                "status": "ACTIVE",
+                "permissions": ["READ", "WRITE", "ADMIN"],
+                "recertification": "CURRENT",
+                "owner_tagged": True
             }
         }
 
-        # ------------------------------------------------
-        # SERVICE-DOWN SIMULATION
-        # ------------------------------------------------
+        # ============================================================
+        # SERVICE FAILURE SCENARIO
+        # ============================================================
 
         if (
             "service down" in request
             or "service unavailable" in request
             or "vault unavailable" in request
-            or "vault down" in request
+            or "pam unavailable" in request
         ):
             return Data(
                 value={
                     "status": "SERVICE_UNAVAILABLE",
-                    "message": "PAM Vault service is currently unavailable."
+                    "message": "PAM service is currently unavailable."
                 }
             )
 
-        # ------------------------------------------------
-        # ACCOUNT SEARCH
-        # ------------------------------------------------
+        # ============================================================
+        # FIND ACCOUNT ID
+        # ============================================================
 
-        for account_id, account in accounts.items():
+        matched_account = None
 
-            if account_id in request:
+        for account_key, account in accounts.items():
 
-                # ------------------------------------------------
-                # PERMISSION REQUEST
-                # ------------------------------------------------
+            if account_key in request:
+                matched_account = account
+                break
 
-                if (
-                    "permission" in request
-                    or "permissions" in request
-                ):
-                    return Data(
-                        value={
-                            "status": "SUCCESS",
-                            "operation": "PERMISSION_REVIEW",
-                            "account_id": account["account_id"],
-                            "owner": account["owner"],
-                            "environment": account["environment"],
-                            "permissions": account["permissions"],
-                            "account_status": account["status"]
-                        }
-                    )
+        # ============================================================
+        # ACCOUNT NOT FOUND
+        # ============================================================
 
-                # ------------------------------------------------
-                # RECERTIFICATION REQUEST
-                # ------------------------------------------------
+        if matched_account is None:
 
-                if (
-                    "recert" in request
-                    or "recertification" in request
-                ):
+            return Data(
+                value={
+                    "status": "NOT_FOUND",
+                    "message": "No matching PAM account was found.",
+                    "action": "DO_NOT_INVENT_DATA"
+                }
+            )
 
-                    # Missing owner scenario
-                    if not account["owner_tagged"]:
-                        return Data(
-                            value={
-                                "status": "MISSING_OWNER",
-                                "operation": "RECERTIFICATION_STATUS",
-                                "account_id": account["account_id"],
-                                "recertification": account["recertification"],
-                                "message": (
-                                    "No owner is assigned to this "
-                                    "recertification item."
-                                )
-                            }
-                        )
+        account = matched_account
 
-                    # Normal recertification
-                    return Data(
-                        value={
-                            "status": "SUCCESS",
-                            "operation": "RECERTIFICATION_STATUS",
-                            "account_id": account["account_id"],
-                            "recertification": account["recertification"],
-                            "owner": account["owner"]
-                        }
-                    )
+        # ============================================================
+        # PERMISSION REVIEW
+        # ============================================================
 
-                # ------------------------------------------------
-                # CREDENTIAL / PASSWORD REQUEST
-                # ------------------------------------------------
+        if (
+            "permission" in request
+            or "permissions" in request
+            or "access" in request
+        ):
 
-                if (
-                    "credential" in request
-                    or "credentials" in request
-                    or "password" in request
-                    or "secret" in request
-                ):
-                    return Data(
-                        value={
-                            "status": "APPROVAL_REQUIRED",
-                            "operation": "CREDENTIAL_RETRIEVAL",
-                            "account_id": account["account_id"],
-                            "message": (
-                                "Privileged credential retrieval "
-                                "requires explicit approval."
-                            ),
-                            "credential": None
-                        }
-                    )
+            return Data(
+                value={
+                    "status": "SUCCESS",
+                    "operation": "PERMISSION_REVIEW",
+                    "account_id": account["account_id"],
+                    "owner": account["owner"],
+                    "environment": account["environment"],
+                    "account_status": account["status"],
+                    "permissions": account["permissions"]
+                }
+            )
 
-                # ------------------------------------------------
-                # ENVIRONMENT REQUEST
-                # ------------------------------------------------
+        # ============================================================
+        # RECERTIFICATION
+        # ============================================================
 
-                if "environment" in request:
-                    return Data(
-                        value={
-                            "status": "SUCCESS",
-                            "operation": "ACCOUNT_ENVIRONMENT",
-                            "account_id": account["account_id"],
-                            "environment": account["environment"]
-                        }
-                    )
+        if (
+            "recertification" in request
+            or "recert" in request
+        ):
 
-                # ------------------------------------------------
-                # OWNER REQUEST
-                # ------------------------------------------------
-
-                if "owner" in request:
-                    return Data(
-                        value={
-                            "status": "SUCCESS",
-                            "operation": "ACCOUNT_OWNER",
-                            "account_id": account["account_id"],
-                            "owner": account["owner"]
-                        }
-                    )
-
-                # ------------------------------------------------
-                # NORMAL ACCOUNT SEARCH
-                # ------------------------------------------------
+            if not account["owner_tagged"]:
 
                 return Data(
                     value={
-                        "status": "SUCCESS",
-                        "operation": "ACCOUNT_SEARCH",
+                        "status": "MISSING_OWNER",
+                        "operation": "RECERTIFICATION_STATUS",
                         "account_id": account["account_id"],
-                        "owner": account["owner"],
-                        "environment": account["environment"],
-                        "account_status": account["status"]
+                        "recertification": account["recertification"],
+                        "message": (
+                            "Recertification item has no assigned owner. "
+                            "Automatic processing is not allowed."
+                        )
                     }
                 )
 
-        # ------------------------------------------------
-        # UNKNOWN ACCOUNT
-        # ------------------------------------------------
+            return Data(
+                value={
+                    "status": "SUCCESS",
+                    "operation": "RECERTIFICATION_STATUS",
+                    "account_id": account["account_id"],
+                    "recertification": account["recertification"],
+                    "owner": account["owner"]
+                }
+            )
+
+        # ============================================================
+        # CREDENTIAL REQUEST
+        # ============================================================
+
+        if (
+            "credential" in request
+            or "credentials" in request
+            or "password" in request
+            or "secret" in request
+        ):
+
+            return Data(
+                value={
+                    "status": "APPROVAL_REQUIRED",
+                    "operation": "CREDENTIAL_REQUEST",
+                    "account_id": account["account_id"],
+                    "environment": account["environment"],
+                    "message": (
+                        "Privileged credential retrieval requires "
+                        "explicit entitlement or approval."
+                    ),
+                    "credential": None
+                }
+            )
+
+        # ============================================================
+        # NORMAL ACCOUNT SEARCH
+        # ============================================================
 
         return Data(
             value={
-                "status": "NOT_FOUND",
+                "status": "SUCCESS",
                 "operation": "ACCOUNT_SEARCH",
-                "message": "No matching PAM account was found."
+                "account_id": account["account_id"],
+                "owner": account["owner"],
+                "environment": account["environment"],
+                "account_status": account["status"]
             }
         )
