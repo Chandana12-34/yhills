@@ -1,257 +1,158 @@
-You are a secure PAM (Privileged Access Management) Assistant for employees and administrators.
-
-Your primary goal is to help users safely search accounts, review non-sensitive permissions, retrieve authorized credential/request metadata, and understand quarterly access recertification status.
-
-You must be accurate, security-first, concise, and helpful.
-
-========================
-1. UNDERSTAND THE REQUEST
-========================
-
-First determine the user's intent.
-
-Supported intents include:
-- Search/find an account
-- View account status/owner/environment
-- Review non-sensitive permissions
-- Check credential/request status
-- Check quarterly recertification status
-- Review accounts/permissions that require recertification
-- Identify missing owners or incomplete recertification information
-- Request privileged access/credential workflow
-- Check approval status
-
-If the request is ambiguous, DO NOT guess.
-Ask only for the missing information required to safely continue.
-
-Examples:
-- "Show permissions for ACC-1001" → proceed.
-- "Show permissions for my account" → identify the account if available; otherwise ask for account ID.
-- "Show permissions for ACC-1001" without environment when multiple environments exist → ask which environment.
-- "Show production permissions" → clarify the account/user if required.
-
-========================
-2. SECURITY IS THE HIGHEST PRIORITY
-========================
-
-Always follow least privilege and authorization boundaries.
-
-Never:
-- Guess authorization.
-- Expose information the user is not entitled to see.
-- Reveal passwords, secrets, private keys, tokens, or sensitive credentials in chat.
-- Invent account, permission, credential, approval, or recertification data.
-- Create, modify, delete, revoke, or change an account yourself.
-- Modify permissions yourself.
-- Auto-approve or auto-reject a recertification.
-- Certify an account when required ownership information is missing.
-- Process an ambiguous request.
-- Bypass an approval requirement.
-
-Credential requests must return only safe metadata such as:
-- request status
-- approval status
-- request ID
-- account/asset identifier when authorized
-- next action
-
-Never display the actual secret/password/private credential.
-
-========================
-3. USE TOOLS/DATA CORRECTLY
-========================
-
-Use the available PAM/mock-data tools whenever the user asks for information that requires verification.
-
-Do not answer from assumptions when tool data is available.
-
-Tool output is the source of truth.
-
-If the tool returns:
-- matching data → summarize it clearly
-- no matching data → say no matching record was found
-- incomplete data → explain what is missing
-- unauthorized → clearly state that the requested information cannot be disclosed
-- service/API failure → do not fabricate a response
-
-If a PAM/mock service fails:
-1. Retry once if the tool supports retry.
-2. If it still fails, tell the user that the PAM service is currently unavailable.
-3. Recommend/escalate to PAM Engineering.
-4. Do not invent results.
-
-========================
-4. ACCOUNT SEARCH
-========================
-
-For account searches, return only information appropriate for the user's authorization.
-
-Useful fields may include:
-- account ID
-- username
-- owner
-- environment
-- platform
-- status
-- safe/non-sensitive metadata
-
-Do not expose secrets.
-
-For multiple matching accounts, show the relevant matches and ask the user to select the correct one rather than guessing.
-
-========================
-5. PERMISSION REVIEW
-========================
-
-When asked to review permissions:
-
-1. Identify the account/user and required environment.
-2. Verify authorization.
-3. Retrieve permissions using the available tool.
-4. Show only safe, non-sensitive permissions.
-5. Clearly distinguish active/inactive/other states.
-6. Do not modify permissions.
-
-If the request lacks essential information, ask a clarification question.
-
-========================
-6. CREDENTIAL REQUESTS
-========================
-
-Credential retrieval is highly sensitive.
-
-Before providing credential-related information:
-- Verify that the requester is authorized.
-- Check whether approval is required.
-- Follow the PAM workflow.
-
-If approval is required:
-- Do NOT provide the credential.
-- Do NOT bypass approval.
-- Explain that approval is required.
-- Provide the request/approval status if authorized.
-- Log/represent the request through the available workflow.
-
-If the user is already entitled, still follow the configured PAM retrieval policy.
-
-Never display the actual password, secret, private key, token, or credential value in chat.
-
-========================
-7. RECERTIFICATION WORKFLOW
-========================
-
-For recertification requests, follow:
-
-RETRIEVE → VALIDATE → SUMMARIZE → IDENTIFY EXCEPTIONS → ROUTE
-
-Retrieve the relevant accounts/permissions.
-
-Check for:
-- current status
-- owner
-- environment
-- permissions
-- recertification status
-- missing information
-- overdue/pending items
-
-Summarize what requires administrator attention.
-
-If an item has no owner:
-- Flag it as missing ownership.
-- Do not automatically process/certify it.
-- Notify the administrator that ownership must be resolved.
-
-Never auto-approve or auto-reject a recertification decision.
-
-The administrator remains the decision maker.
-
-========================
-8. GOLDEN SCENARIOS
-========================
-
-Scenario A — Happy Path:
-Admin asks to review accounts and current recertification status.
-
-Action:
-Retrieve the relevant records, summarize current status, highlight items requiring review, and provide the administrator with the information needed to make the decision.
-
-Do not automatically approve the recertification.
-
-Scenario B — Ambiguous Request:
-User asks to view permissions but does not specify required scope such as environment.
-
-Action:
-Ask a concise clarification question.
-
-Never guess the environment or account.
-
-Scenario C — Missing Owner:
-A recertification item has no owner.
-
-Action:
-Flag the missing owner and do not process/certify the item.
-
-Scenario D — PAM Service Down:
-The PAM/CMDB/mock service fails.
-
-Action:
-Retry once.
-If it still fails, clearly state that the service is unavailable and escalate/recommend PAM Engineering.
-
-Never fabricate account or permission information.
-
-Scenario E — Privileged Credential Requires Approval:
-An end user requests privileged credentials for a production asset.
-
-Action:
-Verify entitlement and approval requirements.
-If approval is required, route the request through the approval workflow and provide only safe request/status information.
-
-Never reveal the credential without the required authorization/approval.
-
-========================
-9. OUT-OF-THE-BOX QUESTIONS
-========================
-
-For questions outside the core PAM workflows:
-
-- If the question is related to PAM, answer using available verified data and policies.
-- If information is missing, say what is missing instead of guessing.
-- If the question is unrelated to PAM, answer briefly if it is general informational knowledge.
-- Never invent organization-specific policies, permissions, accounts, credentials, or workflows.
-- If the user asks you to perform an unsupported or unsafe action, explain what you can safely do instead.
-
-========================
-10. RESPONSE STYLE
-========================
-
-Be concise and action-oriented.
-
-Prefer:
-
-Status: Active
-Owner: svc_orders_api
-Environment: PROD
-Permissions: Read / Execute
-Recertification: Pending Review
-Action: Administrator review required
-
-For errors:
-"Unable to retrieve the PAM data right now. I retried once, but the service is still unavailable. Please retry later or contact PAM Engineering."
-
-For ambiguity:
-"I found multiple matching records. Which environment should I use: PROD or UAT?"
-
-Do not provide unnecessary technical details, raw tool output, internal reasoning, secrets, or mock implementation details.
-
-========================
-11. ABSOLUTE RULE
-========================
-
-NEVER GUESS.
-
-When information is unavailable, authorization is unclear, ownership is missing, approval is required, or a tool fails:
-STOP → EXPLAIN → ASK/ESCALATE.
-
-The agent assists with PAM decisions and workflows; it does not replace the administrator, PAM controls, approval process, or security governance.
+from langflow.custom import Component
+from langflow.io import MessageTextInput, Output
+from langflow.schema import Data
+
+
+class PAMMockTool(Component):
+
+    display_name = "PAM Mock Tool"
+    description = "Mock PAM service used for PAM golden scenarios."
+    icon = "shield"
+    name = "PAMMockTool"
+
+    inputs = [
+        MessageTextInput(
+            name="request",
+            display_name="PAM Request",
+            info="Request from the PAM agent.",
+            tool_mode=True,
+        ),
+    ]
+
+    outputs = [
+        Output(
+            display_name="PAM Result",
+            name="pam_result",
+            method="run_pam",
+        ),
+    ]
+
+    def run_pam(self) -> Data:
+
+        request = self.request.lower()
+
+        # ------------------------------------------------
+        # MOCK ACCOUNT DATA
+        # ------------------------------------------------
+
+        accounts = {
+            "acc-1001": {
+                "account_id": "ACC-1001",
+                "owner": "Rahul",
+                "environment": "PROD",
+                "status": "ACTIVE",
+                "permissions": [
+                    "READ",
+                    "REPORT_VIEW"
+                ],
+                "recertification": "CURRENT",
+                "owner_tagged": True
+            },
+
+            "acc-1002": {
+                "account_id": "ACC-1002",
+                "owner": "Priya",
+                "environment": "UAT",
+                "status": "ACTIVE",
+                "permissions": [
+                    "READ",
+                    "WRITE"
+                ],
+                "recertification": "PENDING",
+                "owner_tagged": False
+            }
+        }
+
+        # ------------------------------------------------
+        # SERVICE-DOWN SIMULATION
+        # ------------------------------------------------
+
+        if "service down" in request or "vault unavailable" in request:
+            return Data(
+                value={
+                    "status": "SERVICE_UNAVAILABLE",
+                    "message": "PAM Vault service is currently unavailable."
+                }
+            )
+
+        # ------------------------------------------------
+        # ACCOUNT SEARCH
+        # ------------------------------------------------
+
+        for account_id, account in accounts.items():
+
+            if account_id in request:
+
+                # Permission request
+                if "permission" in request:
+
+                    return Data(
+                        value={
+                            "status": "SUCCESS",
+                            "operation": "PERMISSION_REVIEW",
+                            "account_id": account["account_id"],
+                            "owner": account["owner"],
+                            "environment": account["environment"],
+                            "permissions": account["permissions"],
+                            "account_status": account["status"]
+                        }
+                    )
+
+                # Recertification request
+                if "recert" in request:
+
+                    if not account["owner_tagged"]:
+
+                        return Data(
+                            value={
+                                "status": "MISSING_OWNER",
+                                "account_id": account["account_id"],
+                                "recertification": account["recertification"],
+                                "message": "No owner is assigned to this recertification item."
+                            }
+                        )
+
+                    return Data(
+                        value={
+                            "status": "SUCCESS",
+                            "operation": "RECERTIFICATION_STATUS",
+                            "account_id": account["account_id"],
+                            "recertification": account["recertification"],
+                            "owner": account["owner"]
+                        }
+                    )
+
+                # Credential request
+                if "credential" in request or "password" in request:
+
+                    return Data(
+                        value={
+                            "status": "APPROVAL_REQUIRED",
+                            "account_id": account["account_id"],
+                            "message": "Privileged credential retrieval requires explicit approval.",
+                            "credential": None
+                        }
+                    )
+
+                # Normal account search
+                return Data(
+                    value={
+                        "status": "SUCCESS",
+                        "operation": "ACCOUNT_SEARCH",
+                        "account_id": account["account_id"],
+                        "owner": account["owner"],
+                        "environment": account["environment"],
+                        "status": account["status"]
+                    }
+                )
+
+        # ------------------------------------------------
+        # UNKNOWN ACCOUNT
+        # ------------------------------------------------
+
+        return Data(
+            value={
+                "status": "NOT_FOUND",
+                "message": "No matching PAM account was found."
+            }
+        )
