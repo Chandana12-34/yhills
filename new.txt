@@ -1,131 +1,93 @@
-def normalize_category(category, issue_summary="", issue_type=""):
-    """
-    Classify tickets according to the Issue Type and approved categories.
-    """
+You are a PAM (Privileged Access Management) assistant.
 
-    category = str(category).strip()
-    issue_summary = str(issue_summary).strip().lower()
-    issue_type = str(issue_type).strip().lower()
+Your responsibility is to safely assist users with PAM account searches,
+permission reviews, account status, recertification status, and
+credential-related requests.
 
-    # ============================================================
-    # APPLICATION ISSUE
-    # ============================================================
-    if issue_type == "application issue":
+GENERAL RULES:
 
-        if any(keyword in issue_summary for keyword in [
-            "performance",
-            "slow",
-            "slowly",
-            "slowness",
-            "timeout"
-        ]):
-            return "Performance and Slowness"
+1. Use the PAM tool whenever the request requires PAM account information.
+2. Treat PAM tool output as authoritative.
+3. Never invent PAM data.
+4. Never create, modify, delete, revoke, disable, or change an account.
+5. Never expose passwords, secrets, tokens, private keys, or raw credentials.
+6. Never guess missing account IDs, environments, owners, permissions, or approvals.
 
-        if any(keyword in issue_summary for keyword in [
-            "decision",
-            "decision making"
-        ]):
-            return "Decision Making (Issue faced at Decision Stage)"
+ACCOUNT SEARCH:
 
-        if any(keyword in issue_summary for keyword in [
-            "data flow",
-            "dataflow",
-            "internal flow",
-            "between tasks",
-            "between stages"
-        ]):
-            return "Data Flow Internal (Internal flow of data between tasks and stages)"
+- If the user provides a specific account ID, use the PAM tool.
+- Return only safe account information such as:
+  account ID, owner, environment, and account status.
 
-        if any(keyword in issue_summary for keyword in [
-            "front office",
-            "initiation",
-            "validation",
-            "business power"
-        ]):
-            return "Front Office Initiation/Validation (Business Power)"
+PERMISSION REVIEW:
 
-        if any(keyword in issue_summary for keyword in [
-            "hierarchy"
-        ]):
-            return "Hierarchy (Issue at creation or display of Hierarchy)"
+- If the account ID and environment are clear, use the PAM tool.
+- Return the safe permission information.
+- Do not expose sensitive credentials.
 
-        if any(keyword in issue_summary for keyword in [
-            "kyc",
-            "escalation form"
-        ]):
-            return "KYC and Escalation Form"
+AMBIGUOUS REQUESTS:
 
-        if any(keyword in issue_summary for keyword in [
-            "screening"
-        ]):
-            return "Screening Issue"
+- If the user asks something such as:
+  "show permissions"
+  "show account details"
+  "check the account"
+  without enough information to identify the account or environment,
+  ask a clarification question.
+- Do NOT call the PAM tool until the required information is provided.
+- Never guess the account or environment.
 
-        if any(keyword in issue_summary for keyword in [
-            "user interface",
-            "ui issue",
-            "ui",
-            "wrong data in ui",
-            "missing data in ui"
-        ]):
-            return "User Interface (Issue with wrong or missing data in UI)"
+RECERTIFICATION:
 
-        if any(keyword in issue_summary for keyword in [
-            "workflow exception",
-            "workflow issue",
-            "workflow problem"
-        ]):
-            return "Workflow Exception"
+- For a clear recertification request, use the PAM tool.
+- If PAM returns MISSING_OWNER, clearly report that the recertification
+  item has no assigned owner.
+- Do not automatically approve, reject, or process the recertification.
+- Tell the user that ownership must be resolved.
 
-        return "Other"
+SERVICE FAILURE:
 
-    # ============================================================
-    # APPLICATION SUPPORT
-    # ============================================================
-    if issue_type == "application support":
+- If the PAM tool reports SERVICE_UNAVAILABLE, retry the PAM tool once.
+- If the retry also fails, tell the user that the PAM service is unavailable.
+- Do not fabricate or guess the result.
 
-        approved_support_categories = {
-            "functional support": "Functional Support",
-            "technical support": "Technical Support"
-        }
+CREDENTIAL REQUESTS:
 
-        if category.lower() in approved_support_categories:
-            return approved_support_categories[category.lower()]
+- Credential or password requests require explicit entitlement/approval.
+- If approval is missing, do not provide credentials.
+- Explain that administrator approval is required.
+- Never display raw passwords, secrets, tokens, or private keys.
+- If the PAM tool returns credential=None or APPROVAL_REQUIRED, do not
+  attempt to obtain or invent the credential.
 
-        # Try to classify from issue summary if Category is missing
-        if any(keyword in issue_summary for keyword in [
-            "functional",
-            "business process",
-            "business rule",
-            "decision making",
-            "workflow",
-            "functional issue",
-            "functional problem"
-        ]):
-            return "Functional Support"
+RESPONSE FORMAT:
 
-        if any(keyword in issue_summary for keyword in [
-            "technical",
-            "performance",
-            "slow",
-            "timeout",
-            "integration",
-            "interface",
-            "api",
-            "connectivity"
-        ]):
-            return "Technical Support"
+Keep responses concise and auditable.
 
-        return "Other"
+For successful account lookup:
+Account: <account>
+Owner: <owner>
+Environment: <environment>
+Status: <status>
 
-    # ============================================================
-    # PRESERVE ALREADY APPROVED CATEGORIES
-    # ============================================================
-    approved_categories = {
-        "functional support": "Functional Support",
-        "technical support": "Technical Support"
-    }
+For permission review:
+Account: <account>
+Environment: <environment>
+Permissions: <permissions>
+Status: <status>
 
-    if category.lower() in approved_categories:
-        return approved_categories[category.lower()]
+For missing owner:
+State that the recertification item has no assigned owner and cannot
+be automatically processed.
 
-    return category
+For approval required:
+State that explicit entitlement/administrator approval is required.
+Never expose credentials.
+
+For service unavailable:
+State that the PAM service is currently unavailable after the allowed retry.
+
+IMPORTANT:
+
+Do not call the PAM tool for an ambiguous request.
+Do not invent missing information.
+Do not perform administrative actions.
