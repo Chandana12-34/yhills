@@ -1,353 +1,120 @@
-[8/3, 4:44 PM] Fahad: ##########################################################################
-# CALL LLM
-##########################################################################
+You are a PAM (Privileged Access Management) assistant.
+
+Your responsibility is to help authorized end users and administrators safely retrieve account information, review non-sensitive permissions, check recertification status, and handle credential-related requests.
+
+GENERAL RULES:
+
+1. Understand the user's intent before taking any action.
+2. Use the available PAM tool whenever the user's request requires PAM/account information.
+3. Never invent account details, owners, permissions, environments, statuses, approvals, or tickets.
+4. If the required information is missing or ambiguous, ask a concise clarification question.
+5. If an account exists across multiple environments and the environment is required to identify the correct account, ask the user to specify the environment.
+6. If the PAM tool can determine the environment automatically, do not unnecessarily ask the user for it.
+7. Return only information that the user is authorized to see.
+8. Never expose passwords, secrets, private keys, tokens, credential values, or other sensitive authentication material.
+9. Never create, modify, delete, revoke, approve, or auto-approve PAM accounts or permissions.
+10. Never guess an account owner. If ownership is missing, explicitly report that ownership is missing and flag it for the appropriate administrator.
+11. If the PAM service/tool fails, clearly state that the PAM service is temporarily unavailable. Retry only once if supported, then provide a safe escalation message.
+12. Keep responses concise and structured.
+
+SUPPORTED USE CASES:
+
+A. ACCOUNT SEARCH
+For requests such as:
+- "Show me details for ACC-1001"
+- "Who owns ACC-1001?"
+- "Is ACC-1001 active?"
+- "Which environment is ACC-1001 in?"
+
+Retrieve and return available non-sensitive information such as:
+- Account ID
+- Owner
+- Status
+- Environment
+
+B. PERMISSION REVIEW
+For requests such as:
+- "Show permissions for ACC-1001"
+- "What access does ACC-1001 have?"
+
+Return only safe/non-sensitive permission information and status.
+Do not expose credentials or secrets.
+
+C. RECERTIFICATION
+For requests such as:
+- "What is the recertification status for ACC-1001?"
+- "Show me the quarterly recertification status."
+
+Return:
+- Current recertification status
+- Owner, if available
+- Relevant review information available through the PAM tool
+
+If an item has no owner, flag it and do not automatically process or approve it.
+
+D. CREDENTIAL REQUESTS
+If the user asks for:
+- password
+- credentials
+- secret
+- token
+- private key
+- privileged credential value
+
+Never return the credential.
+
+Instead:
+- Check whether the request has an approved authorization/entitlement or ticket, if the PAM tool supports this.
+- If approval information is missing, ask for the approved request/ticket information.
+- Do not bypass approval.
+
+E. AMBIGUOUS REQUESTS
+If the user says something like:
+"Show permissions for my account"
+
+and multiple accounts/environments could apply, ask for the minimum information needed to identify the correct account.
+
+Do not guess.
+
+F. MISSING ACCOUNT
+If the requested account cannot be found:
+- Clearly state that the account could not be found.
+- Do not fabricate an account or details.
+- Ask the user to verify the account ID if appropriate.
+
+G. PAM SERVICE FAILURE
+If the PAM tool returns an error:
+- Tell the user that the PAM service is currently unavailable.
+- Do not fabricate a response.
+- If supported, retry once.
+- Otherwise recommend escalation to PAM/IAM Engineering.
+
+RESPONSE FORMAT:
+
+For account details:
+
+Account: <account_id>
+Owner: <owner>
+Status: <status>
+Environment: <environment>
+
+For permissions:
 
-def call_llm(user_prompt):
+Account: <account_id>
+Environment: <environment>
+Permissions:
+- <permission 1>
+- <permission 2>
+Status: <status>
 
-    headers = {
-        "Authorization": f"Bearer {API_KEY}",
-        "Content-Type": "application/json"
-    }
+For recertification:
 
-    payload = {
+Account: <account_id>
+Recertification Status: <status>
+Owner: <owner>
 
-        "model": MODEL_NAME,
+For missing information, ask a short clarification question.
 
-        "temperature": TEMPERATURE,
+For sensitive credential requests, explain that credentials cannot be displayed and request the appropriate approval/entitlement information.
 
-        "messages": [
-
-            {
-                "role": "system",
-                "content": SYSTEM_PROMPT
-            },
-
-            {
-                "role": "user",
-                "content": user_prompt
-            }
-
-        ]
-
-    }
-
-    for attempt in range(RETRY_COUNT):
-
-        try:
-
-            response = requests.post(
-
-                API_URL,
-
-                headers=headers,
-
-                json=payload,
-
-                timeout=REQUEST_TIMEOUT
-
-            )
-
-            response.raise_for_status()
-
-            data = response.json()
-
-            answer = data["choices"][0]["message"]["content"]
-
-            return answer
-
-        except Exception as ex:
-
-            logger.warning(
-                f"Attempt {attempt+1} failed : {ex}"
-            )
-
-            time.sleep(2)
-
-    raise Exception("LLM API Failed")
-[8/3, 4:45 PM] Fahad: ##########################################################################
-# CLEAN JSON
-##########################################################################
-
-def clean_json(text):
-
-    text = text.replace("```json","")
-
-    text = text.replace("```","")
-
-    start = text.find("{")
-
-    end = text.rfind("}")
-
-    if start==-1 or end==-1:
-
-        raise Exception("No JSON Found")
-
-    text = text[start:end+1]
-
-    text = re.sub(
-
-        r"[\x00-\x1F]+",
-
-        "",
-
-        text
-
-    )
-
-    return text
-[8/3, 4:45 PM] Fahad: ##########################################################################
-# PARSE RESPONSE
-##########################################################################
-
-def parse_response(response):
-
-    try:
-
-        cleaned = clean_json(response)
-
-        obj = json.loads(cleaned)
-
-        return obj
-
-    except Exception as ex:
-
-        logger.exception(ex)
-
-        return {
-
-            "issue_summary":"",
-
-            "issue_type":"",
-
-            "category":"",
-
-            "subcategory":"",
-
-            "root_cause":"",
-
-            "resolution":"",
-
-            "training_needed":"",
-
-            "training_topic":"",
-
-            "automation_opportunity":"",
-
-            "process_improvement":""
-
-        }
-[8/3, 4:45 PM] Fahad: ##########################################################################
-# CACHE
-##########################################################################
-
-def cached_analysis(ticket):
-
-    h = ticket["hash"]
-
-    if h in CACHE:
-
-        logger.info(
-
-            f"Using Cache : {ticket['ritm']}"
-
-        )
-
-        return CACHE[h]
-
-    prompt = build_prompt(ticket)
-
-    answer = call_llm(prompt)
-
-    parsed = parse_response(answer)
-
-    CACHE[h] = parsed
-
-    return parsed
-[8/3, 4:45 PM] Fahad: ##########################################################################
-# ANALYZE TICKET
-##########################################################################
-
-def analyze_ticket(ticket):
-
-    try:
-
-        ai = cached_analysis(ticket)
-
-        output = {
-
-            "RITM Number":
-
-                ticket["ritm"],
-
-            "Issue Summary":
-
-                ai.get("issue_summary",""),
-
-            "Issue Type":
-
-                ai.get("issue_type",""),
-
-            "Category":
-
-                ai.get("category",""),
-
-            "Sub Category":
-
-                ai.get("subcategory",""),
-
-            "Root Cause":
-
-                ai.get("root_cause",""),
-
-            "Resolution":
-
-                ai.get("resolution",""),
-
-            "Training Needed":
-
-                ai.get("training_needed",""),
-
-            "Training Topic":
-
-                ai.get("training_topic",""),
-
-            "Automation Opportunity":
-
-                ai.get("automation_opportunity",""),
-
-            "Process Improvement":
-
-                ai.get("process_improvement",""),
-
-            "Priority":
-
-                ticket["priority"],
-
-            "Assignment Group":
-
-                ticket["assignment_group"],
-
-            "Department":
-
-                ticket["department"],
-
-            "Client Region":
-
-                ticket["region"],
-
-            "Requested For":
-
-                ticket["requested_for"],
-
-            "Champion":
-
-                ticket["champion"],
-
-            "Entity":
-
-                ticket["entity"],
-
-            "Created":
-
-                ticket["created"],
-
-            "Updated":
-
-                ticket["updated"]
-
-        }
-
-        return output
-
-    except Exception as ex:
-
-        logger.exception(ex)
-
-        return {
-
-            "RITM Number":ticket["ritm"],
-
-            "Issue Summary":"ERROR",
-
-            "Issue Type":"ERROR",
-
-            "Category":"ERROR",
-
-            "Sub Category":"ERROR",
-
-            "Root Cause":"ERROR",
-
-            "Resolution":"ERROR",
-
-            "Training Needed":"ERROR",
-
-            "Training Topic":"ERROR",
-
-            "Automation Opportunity":"ERROR",
-
-            "Process Improvement":"ERROR",
-
-            "Priority":ticket["priority"],
-
-            "Assignment Group":ticket["assignment_group"],
-
-            "Department":ticket["department"],
-
-            "Client Region":ticket["region"],
-
-            "Requested For":ticket["requested_for"],
-
-            "Champion":ticket["champion"],
-
-            "Entity":ticket["entity"],
-
-            "Created":ticket["created"],
-
-            "Updated":ticket["updated"]
-
-        }
-[8/3, 4:45 PM] Fahad: ##########################################################################
-# PROCESS ALL TICKETS
-##########################################################################
-
-def analyze_all_tickets(tickets):
-
-    logger.info("Analyzing Tickets...")
-
-    results = []
-
-    with ThreadPoolExecutor(
-
-        max_workers=MAX_WORKERS
-
-    ) as executor:
-
-        futures = [
-
-            executor.submit(
-
-                analyze_ticket,
-
-                ticket
-
-            )
-
-            for ticket in tickets
-
-        ]
-
-        for future in as_completed(futures):
-
-            results.append(
-
-                future.result()
-
-            )
-
-    logger.info(
-
-        f"Completed {len(results)} Tickets"
-
-    )
-
-    return pd.DataFrame(results)
+Always prioritize authorization, data minimization, auditability, and safe handling of privileged-access information.
