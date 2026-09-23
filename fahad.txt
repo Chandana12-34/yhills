@@ -1,103 +1,158 @@
-def normalize_text(value):
-    """Normalize text for reliable keyword matching."""
-    if value is None:
-        return ""
-
-    return str(value).strip().lower()
+from langflow.custom import Component
+from langflow.io import MessageTextInput, Output
+from langflow.schema import Data
 
 
-def classify_application_support(summary):
-    """
-    Classify Application Support tickets into
-    Category + Sub Category.
-    """
+class PAMMockTool(Component):
 
-    text = normalize_text(summary)
+    display_name = "PAM Mock Tool"
+    description = "Mock PAM service used for PAM golden scenarios."
+    icon = "shield"
+    name = "PAMMockTool"
 
-    # -------------------------------------------------
-    # Functional Support subcategories
-    # -------------------------------------------------
+    inputs = [
+        MessageTextInput(
+            name="request",
+            display_name="PAM Request",
+            info="Request from the PAM agent.",
+            tool_mode=True,
+        ),
+    ]
 
-    if any(keyword in text for keyword in [
-        "performance",
-        "slow",
-        "slowness",
-        "timeout",
-        "takes too long",
-        "response time"
-    ]):
-        return "Functional Support", "Performance and Slowness"
+    outputs = [
+        Output(
+            display_name="PAM Result",
+            name="pam_result",
+            method="run_pam",
+        ),
+    ]
 
-    if any(keyword in text for keyword in [
-        "decision making",
-        "decision stage",
-        "decision",
-        "decision rule"
-    ]):
-        return "Functional Support", \
-               "Decision Making (Issue faced at Decision Stage)"
+    def run_pam(self) -> Data:
 
-    if any(keyword in text for keyword in [
-        "data flow",
-        "internal flow",
-        "data between tasks",
-        "data between stages"
-    ]):
-        return "Functional Support", \
-               "Data Flow Internal (Internal flow of data between tasks and stages)"
+        request = self.request.lower()
 
-    if any(keyword in text for keyword in [
-        "front office",
-        "business power",
-        "initiation",
-        "validation"
-    ]):
-        return "Functional Support", \
-               "Front Office Initiation/Validation (Business Power)"
+        # ------------------------------------------------
+        # MOCK ACCOUNT DATA
+        # ------------------------------------------------
 
-    if any(keyword in text for keyword in [
-        "hierarchy",
-        "hierarchies"
-    ]):
-        return "Functional Support", \
-               "Hierarchy (Issue at creation or display of Hierarchy)"
+        accounts = {
+            "acc-1001": {
+                "account_id": "ACC-1001",
+                "owner": "Rahul",
+                "environment": "PROD",
+                "status": "ACTIVE",
+                "permissions": [
+                    "READ",
+                    "REPORT_VIEW"
+                ],
+                "recertification": "CURRENT",
+                "owner_tagged": True
+            },
 
-    if any(keyword in text for keyword in [
-        "kyc",
-        "escalation form"
-    ]):
-        return "Functional Support", \
-               "KYC and Escalation Form"
+            "acc-1002": {
+                "account_id": "ACC-1002",
+                "owner": "Priya",
+                "environment": "UAT",
+                "status": "ACTIVE",
+                "permissions": [
+                    "READ",
+                    "WRITE"
+                ],
+                "recertification": "PENDING",
+                "owner_tagged": False
+            }
+        }
 
-    if any(keyword in text for keyword in [
-        "screening",
-        "screening issue"
-    ]):
-        return "Functional Support", "Screening Issue"
+        # ------------------------------------------------
+        # SERVICE-DOWN SIMULATION
+        # ------------------------------------------------
 
-    if any(keyword in text for keyword in [
-        "user interface",
-        "ui issue",
-        "ui",
-        "wrong data in ui",
-        "missing data in ui",
-        "missing field",
-        "field not displayed",
-        "display issue"
-    ]):
-        return "Functional Support", \
-               "User Interface (Issue with wrong or missing data in UI)"
+        if "service down" in request or "vault unavailable" in request:
+            return Data(
+                value={
+                    "status": "SERVICE_UNAVAILABLE",
+                    "message": "PAM Vault service is currently unavailable."
+                }
+            )
 
-    if any(keyword in text for keyword in [
-        "workflow exception",
-        "workflow issue",
-        "workflow error",
-        "workflow"
-    ]):
-        return "Functional Support", "Workflow Exception"
+        # ------------------------------------------------
+        # ACCOUNT SEARCH
+        # ------------------------------------------------
 
-    # -------------------------------------------------
-    # If it doesn't match a known functional category
-    # -------------------------------------------------
+        for account_id, account in accounts.items():
 
-    return "Functional Support", "Other"
+            if account_id in request:
+
+                # Permission request
+                if "permission" in request:
+
+                    return Data(
+                        value={
+                            "status": "SUCCESS",
+                            "operation": "PERMISSION_REVIEW",
+                            "account_id": account["account_id"],
+                            "owner": account["owner"],
+                            "environment": account["environment"],
+                            "permissions": account["permissions"],
+                            "account_status": account["status"]
+                        }
+                    )
+
+                # Recertification request
+                if "recert" in request:
+
+                    if not account["owner_tagged"]:
+
+                        return Data(
+                            value={
+                                "status": "MISSING_OWNER",
+                                "account_id": account["account_id"],
+                                "recertification": account["recertification"],
+                                "message": "No owner is assigned to this recertification item."
+                            }
+                        )
+
+                    return Data(
+                        value={
+                            "status": "SUCCESS",
+                            "operation": "RECERTIFICATION_STATUS",
+                            "account_id": account["account_id"],
+                            "recertification": account["recertification"],
+                            "owner": account["owner"]
+                        }
+                    )
+
+                # Credential request
+                if "credential" in request or "password" in request:
+
+                    return Data(
+                        value={
+                            "status": "APPROVAL_REQUIRED",
+                            "account_id": account["account_id"],
+                            "message": "Privileged credential retrieval requires explicit approval.",
+                            "credential": None
+                        }
+                    )
+
+                # Normal account search
+                return Data(
+                    value={
+                        "status": "SUCCESS",
+                        "operation": "ACCOUNT_SEARCH",
+                        "account_id": account["account_id"],
+                        "owner": account["owner"],
+                        "environment": account["environment"],
+                        "status": account["status"]
+                    }
+                )
+
+        # ------------------------------------------------
+        # UNKNOWN ACCOUNT
+        # ------------------------------------------------
+
+        return Data(
+            value={
+                "status": "NOT_FOUND",
+                "message": "No matching PAM account was found."
+            }
+        )
