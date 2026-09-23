@@ -6,7 +6,7 @@ from langflow.schema import Data
 class PAMMockTool(Component):
 
     display_name = "PAM Mock Tool"
-    description = "Mock PAM service used for PAM golden scenarios."
+    description = "Mock PAM service for PAM golden scenarios."
     icon = "shield"
     name = "PAMMockTool"
 
@@ -14,7 +14,7 @@ class PAMMockTool(Component):
         MessageTextInput(
             name="request",
             display_name="PAM Request",
-            info="Request from the PAM agent.",
+            info="Request received from the PAM agent.",
             tool_mode=True,
         ),
     ]
@@ -29,11 +29,11 @@ class PAMMockTool(Component):
 
     def run_pam(self) -> Data:
 
-        request = self.request.lower()
+        request = (self.request or "").lower().strip()
 
-        # ------------------------------------------------
-        # MOCK ACCOUNT DATA
-        # ------------------------------------------------
+        # ==================================================
+        # MOCK PAM DATABASE
+        # ==================================================
 
         accounts = {
             "acc-1001": {
@@ -51,7 +51,7 @@ class PAMMockTool(Component):
 
             "acc-1002": {
                 "account_id": "ACC-1002",
-                "owner": "Priya",
+                "owner": None,
                 "environment": "UAT",
                 "status": "ACTIVE",
                 "permissions": [
@@ -63,11 +63,17 @@ class PAMMockTool(Component):
             }
         }
 
-        # ------------------------------------------------
-        # SERVICE-DOWN SIMULATION
-        # ------------------------------------------------
+        # ==================================================
+        # SCENARIO 4
+        # SERVICE UNAVAILABLE
+        # ==================================================
 
-        if "service down" in request or "vault unavailable" in request:
+        if (
+            "service down" in request
+            or "vault unavailable" in request
+            or "pam unavailable" in request
+            or "pam service is down" in request
+        ):
             return Data(
                 value={
                     "status": "SERVICE_UNAVAILABLE",
@@ -75,40 +81,61 @@ class PAMMockTool(Component):
                 }
             )
 
-        # ------------------------------------------------
-        # ACCOUNT SEARCH
-        # ------------------------------------------------
+        # ==================================================
+        # SCENARIO 5
+        # PRIVILEGED CREDENTIAL REQUEST
+        # ==================================================
 
-        for account_id, account in accounts.items():
+        if (
+            "credential" in request
+            or "password" in request
+            or "secret" in request
+        ):
 
-            if account_id in request:
+            account_id = None
 
-                # Permission request
-                if "permission" in request:
+            for acc_id in accounts:
+                if acc_id in request:
+                    account_id = accounts[acc_id]["account_id"]
+                    break
 
-                    return Data(
-                        value={
-                            "status": "SUCCESS",
-                            "operation": "PERMISSION_REVIEW",
-                            "account_id": account["account_id"],
-                            "owner": account["owner"],
-                            "environment": account["environment"],
-                            "permissions": account["permissions"],
-                            "account_status": account["status"]
-                        }
-                    )
+            return Data(
+                value={
+                    "status": "APPROVAL_REQUIRED",
+                    "account_id": account_id,
+                    "message": (
+                        "Privileged credential retrieval requires "
+                        "explicit entitlement and approval."
+                    ),
+                    "credential": None
+                }
+            )
 
-                # Recertification request
-                if "recert" in request:
+        # ==================================================
+        # SCENARIO 3
+        # RECERTIFICATION / MISSING OWNER
+        # ==================================================
+
+        if "recert" in request or "recertification" in request:
+
+            for account_id, account in accounts.items():
+
+                if account_id in request:
 
                     if not account["owner_tagged"]:
 
                         return Data(
                             value={
                                 "status": "MISSING_OWNER",
+                                "operation": "RECERTIFICATION",
                                 "account_id": account["account_id"],
                                 "recertification": account["recertification"],
-                                "message": "No owner is assigned to this recertification item."
+                                "owner": None,
+                                "message": (
+                                    "No owner is assigned to this "
+                                    "recertification item. "
+                                    "Manual ownership resolution is required."
+                                )
                             }
                         )
 
@@ -122,19 +149,50 @@ class PAMMockTool(Component):
                         }
                     )
 
-                # Credential request
-                if "credential" in request or "password" in request:
+            return Data(
+                value={
+                    "status": "NOT_FOUND",
+                    "message": "No matching account was found."
+                }
+            )
+
+        # ==================================================
+        # PERMISSION REVIEW
+        # ==================================================
+
+        if "permission" in request or "permissions" in request:
+
+            for account_id, account in accounts.items():
+
+                if account_id in request:
 
                     return Data(
                         value={
-                            "status": "APPROVAL_REQUIRED",
+                            "status": "SUCCESS",
+                            "operation": "PERMISSION_REVIEW",
                             "account_id": account["account_id"],
-                            "message": "Privileged credential retrieval requires explicit approval.",
-                            "credential": None
+                            "owner": account["owner"],
+                            "environment": account["environment"],
+                            "permissions": account["permissions"],
+                            "account_status": account["status"]
                         }
                     )
 
-                # Normal account search
+            return Data(
+                value={
+                    "status": "NOT_FOUND",
+                    "message": "No matching PAM account was found."
+                }
+            )
+
+        # ==================================================
+        # ACCOUNT SEARCH
+        # ==================================================
+
+        for account_id, account in accounts.items():
+
+            if account_id in request:
+
                 return Data(
                     value={
                         "status": "SUCCESS",
@@ -142,17 +200,49 @@ class PAMMockTool(Component):
                         "account_id": account["account_id"],
                         "owner": account["owner"],
                         "environment": account["environment"],
-                        "status": account["status"]
+                        "account_status": account["status"]
                     }
                 )
 
-        # ------------------------------------------------
-        # UNKNOWN ACCOUNT
-        # ------------------------------------------------
+        # ==================================================
+        # HAPPY PATH - ACCOUNT LIST
+        # ==================================================
+
+        if (
+            "account list" in request
+            or "accounts" in request
+            or "review accounts" in request
+            or "review the accounts" in request
+        ):
+
+            return Data(
+                value={
+                    "status": "SUCCESS",
+                    "operation": "ACCOUNT_LIST",
+                    "accounts": [
+                        {
+                            "account_id": "ACC-1001",
+                            "owner": "Rahul",
+                            "environment": "PROD",
+                            "status": "ACTIVE"
+                        },
+                        {
+                            "account_id": "ACC-1002",
+                            "owner": "UNASSIGNED",
+                            "environment": "UAT",
+                            "status": "ACTIVE"
+                        }
+                    ]
+                }
+            )
+
+        # ==================================================
+        # UNKNOWN REQUEST
+        # ==================================================
 
         return Data(
             value={
                 "status": "NOT_FOUND",
-                "message": "No matching PAM account was found."
+                "message": "No matching PAM request or account was found."
             }
         )
