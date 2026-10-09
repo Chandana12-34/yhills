@@ -1,220 +1,58 @@
-from langflow.custom import Component
-from langflow.io import MessageTextInput, Output
-from langflow.schema import Data
+from datetime import datetime
 
 
-class PAMMockTool(Component):
+def fetch_crds_health(file_path):
+    components = []
+    error = None
 
-    display_name = "PAM Mock Tool"
-    description = "Mock PAM service for PAM golden scenarios."
-    icon = "shield"
-    name = "PAMMockTool"
+    try:
+        with open(file_path, "r", encoding="utf-8") as file:
+            for line in file:
+                line = line.strip()
 
-    inputs = [
-        MessageTextInput(
-            name="request",
-            display_name="PAM Request",
-            info="Request received from the PAM agent.",
-            tool_mode=True,
-        ),
-    ]
+                # Skip empty lines or lines without a separator
+                if not line or "|" not in line:
+                    continue
 
-    outputs = [
-        Output(
-            display_name="PAM Result",
-            name="pam_result",
-            method="run_pam",
-        ),
-    ]
+                # Expected format: ComponentName | UP/DOWN
+                name, status = line.rsplit("|", 1)
 
-    def run_pam(self) -> Data:
+                name = name.strip()
+                status = status.strip().upper()
 
-        request = (self.request or "").lower().strip()
+                if not name:
+                    continue
 
-        # ============================================================
-        # MOCK PAM DATABASE
-        # ============================================================
+                # Accept only recognized component statuses
+                if status not in ("UP", "DOWN"):
+                    continue
 
-        accounts = {
+                components.append({
+                    "name": name,
+                    "status": status
+                })
 
-            "acc-1001": {
-                "account_id": "ACC-1001",
-                "owner": "Rahul",
-                "environment": "PROD",
-                "status": "ACTIVE",
-                "permissions": ["READ", "REPORT_VIEW"],
-                "recertification": "CURRENT",
-                "owner_tagged": True
-            },
+        if not components:
+            overall_status = "UNKNOWN"
+            error = "No valid component statuses found in CRDS file"
 
-            "acc-1002": {
-                "account_id": "ACC-1002",
-                "owner": "Priya",
-                "environment": "UAT",
-                "status": "ACTIVE",
-                "permissions": ["READ", "WRITE"],
-                "recertification": "PENDING",
-                "owner_tagged": False
-            },
+        elif any(c["status"] == "DOWN" for c in components):
+            overall_status = "DOWN"
 
-            "acc-1003": {
-                "account_id": "ACC-1003",
-                "owner": "Amit",
-                "environment": "DEV",
-                "status": "DISABLED",
-                "permissions": ["READ"],
-                "recertification": "EXPIRED",
-                "owner_tagged": True
-            },
+        else:
+            overall_status = "UP"
 
-            "acc-1004": {
-                "account_id": "ACC-1004",
-                "owner": "Sneha",
-                "environment": "PROD",
-                "status": "ACTIVE",
-                "permissions": ["READ", "WRITE", "ADMIN"],
-                "recertification": "CURRENT",
-                "owner_tagged": True
-            }
-        }
+    except OSError as exc:
+        overall_status = "UNKNOWN"
+        error = f"Unable to read CRDS file: {exc}"
 
-        # ============================================================
-        # SERVICE FAILURE SCENARIO
-        # ============================================================
-
-        if (
-            "service down" in request
-            or "service unavailable" in request
-            or "vault unavailable" in request
-            or "pam unavailable" in request
-        ):
-            return Data(
-                value={
-                    "status": "SERVICE_UNAVAILABLE",
-                    "message": "PAM service is currently unavailable."
-                }
-            )
-
-        # ============================================================
-        # FIND ACCOUNT ID
-        # ============================================================
-
-        matched_account = None
-
-        for account_key, account in accounts.items():
-
-            if account_key in request:
-                matched_account = account
-                break
-
-        # ============================================================
-        # ACCOUNT NOT FOUND
-        # ============================================================
-
-        if matched_account is None:
-
-            return Data(
-                value={
-                    "status": "NOT_FOUND",
-                    "message": "No matching PAM account was found.",
-                    "action": "DO_NOT_INVENT_DATA"
-                }
-            )
-
-        account = matched_account
-
-        # ============================================================
-        # PERMISSION REVIEW
-        # ============================================================
-
-        if (
-            "permission" in request
-            or "permissions" in request
-            or "access" in request
-        ):
-
-            return Data(
-                value={
-                    "status": "SUCCESS",
-                    "operation": "PERMISSION_REVIEW",
-                    "account_id": account["account_id"],
-                    "owner": account["owner"],
-                    "environment": account["environment"],
-                    "account_status": account["status"],
-                    "permissions": account["permissions"]
-                }
-            )
-
-        # ============================================================
-        # RECERTIFICATION
-        # ============================================================
-
-        if (
-            "recertification" in request
-            or "recert" in request
-        ):
-
-            if not account["owner_tagged"]:
-
-                return Data(
-                    value={
-                        "status": "MISSING_OWNER",
-                        "operation": "RECERTIFICATION_STATUS",
-                        "account_id": account["account_id"],
-                        "recertification": account["recertification"],
-                        "message": (
-                            "Recertification item has no assigned owner. "
-                            "Automatic processing is not allowed."
-                        )
-                    }
-                )
-
-            return Data(
-                value={
-                    "status": "SUCCESS",
-                    "operation": "RECERTIFICATION_STATUS",
-                    "account_id": account["account_id"],
-                    "recertification": account["recertification"],
-                    "owner": account["owner"]
-                }
-            )
-
-        # ============================================================
-        # CREDENTIAL REQUEST
-        # ============================================================
-
-        if (
-            "credential" in request
-            or "credentials" in request
-            or "password" in request
-            or "secret" in request
-        ):
-
-            return Data(
-                value={
-                    "status": "APPROVAL_REQUIRED",
-                    "operation": "CREDENTIAL_REQUEST",
-                    "account_id": account["account_id"],
-                    "environment": account["environment"],
-                    "message": (
-                        "Privileged credential retrieval requires "
-                        "explicit entitlement or approval."
-                    ),
-                    "credential": None
-                }
-            )
-
-        # ============================================================
-        # NORMAL ACCOUNT SEARCH
-        # ============================================================
-
-        return Data(
-            value={
-                "status": "SUCCESS",
-                "operation": "ACCOUNT_SEARCH",
-                "account_id": account["account_id"],
-                "owner": account["owner"],
-                "environment": account["environment"],
-                "account_status": account["status"]
-            }
-        )
+    return {
+        "endpoint_name": "CRDS",
+        "url": file_path,
+        "status": overall_status,
+        "details": {},
+        "components": components,
+        "timestamp": datetime.now().isoformat(),
+        "error": error,
+        "response_time": None
+    }
