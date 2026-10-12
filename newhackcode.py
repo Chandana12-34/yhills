@@ -1,44 +1,39 @@
 from datetime import datetime
+from pathlib import Path
 
 
 def fetch_crds_health(file_path):
     components = []
     error = None
 
+    file_path = Path(file_path)
+
+    if not file_path.is_absolute():
+        file_path = Path(__file__).resolve().parent / file_path
+
     try:
-        with open(file_path, "r", encoding="utf-8") as file:
+        with file_path.open("r", encoding="utf-8") as file:
             for line in file:
                 line = line.strip()
 
-                # Skip empty lines or lines without a separator
                 if not line or "|" not in line:
                     continue
 
-                # Expected format: ComponentName | UP/DOWN
                 name, status = line.rsplit("|", 1)
-
                 name = name.strip()
                 status = status.strip().upper()
 
-                if not name:
-                    continue
-
-                # Accept only recognized component statuses
-                if status not in ("UP", "DOWN"):
-                    continue
-
-                components.append({
-                    "name": name,
-                    "status": status
-                })
+                if name and status in ("UP", "DOWN"):
+                    components.append({
+                        "name": name,
+                        "status": status
+                    })
 
         if not components:
             overall_status = "UNKNOWN"
             error = "No valid component statuses found in CRDS file"
-
         elif any(c["status"] == "DOWN" for c in components):
             overall_status = "DOWN"
-
         else:
             overall_status = "UP"
 
@@ -48,7 +43,7 @@ def fetch_crds_health(file_path):
 
     return {
         "endpoint_name": "CRDS",
-        "url": file_path,
+        "url": str(file_path),
         "status": overall_status,
         "details": {},
         "components": components,
