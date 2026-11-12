@@ -1,1 +1,5 @@
-formatTimestamp(now() - 1, format:"yyyyMMdd"):cib.extension.filecheck.match.filter(and(eq(alias, AML1), contains(file_path, ""))):splitBy(alias, file_path):sort(value(auto, descending)):limit(2000)
+fetch metrics
+| filter metric.key == "cib.extension.filecheck.match"
+| filter alias == "AML1"
+| filter contains(file_path, formatTimestamp(now() - 1d, format:"yyyyMMdd"))
+| limit 100
